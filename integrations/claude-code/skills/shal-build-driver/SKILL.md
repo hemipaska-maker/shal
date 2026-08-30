@@ -153,7 +153,10 @@ assert report.ok, str(report)
 
 Static checks (llm_ready, @op metadata, schema well-formedness, unbounded-
 numeric-write warnings) plus live probes on the sim (limits actually reject
-pre-I/O, writes actually hit the audit log, capabilities actually isinstance).
+pre-I/O, writes actually hit the audit log, capabilities actually isinstance,
+and — for a zero-arg read op bound behind a `shal,sim-*` bus — a forced
+non-delivering hop actually raises `HopError` instead of a stale default,
+per D12/issue #108).
 
 ## Make it discoverable to an authoring agent (optional)
 
