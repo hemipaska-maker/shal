@@ -52,6 +52,8 @@ hard_stops:
 # What the reviewer reads.
 review:
   standards_sources:          # the "Standards" axis (auto-detected; keep what exists)
+    - docs/ARCHITECTURE.md    # §5 = the Decision Ledger (D1-D16). A PR that breaks a
+                              # locked decision fails Standards — no taste argument needed.
     - AGENTS.md
     - docs/agents/
   spec_source: issue          # the "Spec" axis = the originating issue

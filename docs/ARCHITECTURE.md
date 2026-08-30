@@ -157,6 +157,15 @@ sequenceDiagram
 
 ## 5. Decision Ledger  *(locked — append, don't silently re-litigate)*
 
+> **This section is SHAL's Decision Ledger of record** under `decision-ledger-standard.md`
+> v1.0, and it **stays here** — grandfathered on purpose, not pending a move to
+> `docs/DECISIONS.md`. The decisions are load-bearing *because* they sit beside the
+> principles, components and flows that motivate them (D4 → §2's Gate, D15 → the bus
+> contract), `AGENTS.md` points every agent at this file as the single north star, and
+> the shipped in-wheel SDK already cites it by this path (`src/shal/SDK.md` → "ARCHITECTURE
+> D12"). Registered in `.agent-loop.yml` → `review.standards_sources`. Issues cite these
+> by number: `## Decision — Implements **D12** (read freshness is a contract).`
+
 | # | Decision | Source |
 |---|---|---|
 | D1 | **Device-agnostic core:** device **drivers** + **examples** aren't bundled (repo / community). Capability **contracts** and the Authoring Kit *do* ship (governed content — D8/D13). The line: **contracts ship, drivers don't** | #46 |
@@ -177,4 +186,18 @@ sequenceDiagram
 | D16 | **Agent-host adapters live outside the agnostic core.** Single-vendor host packs (Claude Code skills; future Cursor/Codex) live in `integrations/<host>/` (→ a `shal-integrations` repo), never in `src/shal/` or the wheel. **Open-standard** adapters (the `shal` CLI, MCP) stay in core. The neutral authoring contract (`src/shal/SDK.md` + shipped `shal docs`) is the source of truth the host packs render — the *agent* analog of D1 (contracts ship, host packs don't) | this doc |
 
 ### Open decisions
-*None — all resolved. New decisions get a `D##` row above (with their source); they don't get re-litigated silently.*
+*Named, not yet decided. An issue that needs one of these is **not** ready for `agent:go`.
+New decisions get a `D##` row above (with their source); they don't get re-litigated silently.*
+
+- **O5 — Does the ledger govern the *published artifact*, or only the source?** Nothing in
+  D1–D16 says the thing on PyPI must stay installable and startable. The 2026-08-30 audit
+  found the consequence: unbounded optional deps (`mcp>=1.0`) + CI with no `schedule:`
+  trigger meant a breaking SDK major landed in the published package unseen for 40 days
+  (#105, #106). Settled by deciding whether "shipped and working from a clean install" is
+  a locked decision with a standing check behind it, or release hygiene that lives outside
+  the ledger.
+
+### Superseded
+*Keep the history. A replaced decision moves here with what replaced it and why.*
+
+*None yet — D1–D16 are all live as of the 2026-08-30 audit.*
