@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Pin the MCP SDK major** (#107) — the `mcp` extra was `mcp>=1.0`, unbounded, so a clean
+  `pip install "pyshal[mcp]"` could resolve MCP 2.x, whose low-level API dropped the
+  `@server.list_tools()` / `@server.call_tool()` decorators `src/shal/mcp/server.py` is
+  written against, breaking `shal mcp` at import with `AttributeError: 'Server' object has
+  no attribute 'list_tools'`. Both the `mcp` and `dev` extras now pin `mcp>=1.0,<2`.
+
 ## [0.2.1] - 2026-06-23
 
 Cold-user blockers found by the 0.2.1 cold-install verification (run 1) — see #88.
