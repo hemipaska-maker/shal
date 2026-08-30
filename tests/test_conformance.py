@@ -1,8 +1,12 @@
 """shal.conformance — the self-certification kit (DESIGN V2: 'product, not
 scaffolding'). A generated driver passes check_driver() or it isn't done."""
 
+from pathlib import Path
+
 import shal
 from shal import conformance
+
+HERE = Path(__file__).parent
 
 
 @shal.register
@@ -132,3 +136,73 @@ def test_missing_op_metadata_is_a_problem():
     report = conformance.check_driver("test,conf-nometa")
     assert not report.ok
     assert any("llm_ready" in p or "@shal.op" in p for p in report.problems)
+
+
+# ---- freshness probe (D12, issue #108) -------------------------------------------
+
+@shal.register
+class _FreshReader(shal.Driver):
+    """D12-compliant: a HopError from the bus reaches the caller untouched."""
+
+    compatible = "test,conf-fresh-good"
+    kind = shal.ByteTransport
+    llm_ready = True
+
+    @shal.idempotent
+    @shal.op("Read now.", side_effect="none")
+    def read_value(self) -> int:
+        raw = self.bus.txn(self.addr, [shal.Read(1)])
+        return raw[0]
+
+
+@shal.register
+class _StaleReader(shal.Driver):
+    """The anti-pattern D12 forbids: a non-delivering hop is swallowed and a
+    stale default returned instead of raising."""
+
+    compatible = "test,conf-fresh-bad"
+    kind = shal.ByteTransport
+    llm_ready = True
+
+    @shal.idempotent
+    @shal.op("Read now.", side_effect="none")
+    def read_value(self) -> int:
+        try:
+            raw = self.bus.txn(self.addr, [shal.Read(1)])
+        except shal.HopError:
+            return 0  # BAD — never do this; see SDK.md 1b
+        return raw[0]
+
+
+FRESH_YAML = ("shal_version: 1\n"
+              "root:\n"
+              "  bench:\n"
+              "    driver: shal,sim-i2c\n"
+              "    address: sim0\n"
+              "    children:\n"
+              "      dev: {{id: dev, driver: '{compatible}', address: 80}}\n")
+
+
+def test_freshness_probe_certifies_a_driver_that_raises_on_no_answer(tmp_path):
+    p = tmp_path / "s.yaml"
+    p.write_text(FRESH_YAML.format(compatible="test,conf-fresh-good"), encoding="utf-8")
+    report = conformance.check_driver("test,conf-fresh-good", topology=p)
+    assert report.ok, report.problems
+    assert any("freshness" in c for c in report.checked)
+
+
+def test_freshness_probe_catches_a_stale_default_on_no_answer(tmp_path):
+    p = tmp_path / "s.yaml"
+    p.write_text(FRESH_YAML.format(compatible="test,conf-fresh-bad"), encoding="utf-8")
+    report = conformance.check_driver("test,conf-fresh-bad", topology=p)
+    assert not report.ok
+    assert any("D12" in prob for prob in report.problems)
+
+
+def test_freshness_probe_on_the_real_i2c_stack():
+    """The end-to-end regression this issue was filed over: tmp102 on the core
+    sim-i2c bus must raise HopError, not return/crash, when the bus can't
+    deliver."""
+    report = conformance.check_driver("ti,tmp102", topology=HERE / "setup_sim.yaml")
+    assert report.ok, report.problems
+    assert any("freshness" in c for c in report.checked)

@@ -13,10 +13,11 @@ import pytest
 
 import shal
 from shal.buses import http_bus
-from shal.buses.i2c_cli import parse_output, render_ops
+from shal.buses.i2c_cli import I2cCliBus, parse_output, render_ops
 from shal.buses.ssh import ssh_argv
 from shal.log import redact_url
-from shal.transport import Read, Write
+from shal.node import Node
+from shal.transport import CommandTransport, Completed, Read, Transport, Write
 
 
 def write(tmp_path, body: str) -> Path:
@@ -146,6 +147,24 @@ def test_i2c_cli_render_and_parse():
     argv = render_ops(0x48, [Write(b"\x00"), Read(2)])
     assert argv == ["w1@0x48", "0x00", "r2"]      # repeated-start write-then-read
     assert parse_output(b"0x19 0x00\n") == b"\x19\x00"
+
+
+def test_i2c_cli_empty_stdout_raises_hoperror():
+    """D12 (issue #108): exit 0 + empty stdout must raise HopError, not
+    silently return b"" — a downstream driver (e.g. tmp102) indexing that
+    empty result used to die with a bare IndexError instead."""
+    class _FakeLocal(Transport, CommandTransport):
+        def run(self, argv, stdin=b"") -> Completed:
+            return Completed(stdout=b"", stderr=b"", exit=0)
+
+    root = Node("here")
+    root.driver = _FakeLocal(root)
+    child = Node("i2c0", address="/dev/i2c-1", parent=root)
+    bus = I2cCliBus(child)
+    child.driver = bus
+    with pytest.raises(shal.HopError, match="short read") as exc_info:
+        bus.txn(0x48, [Write(b"\x00"), Read(2)])
+    assert exc_info.value.delivered == "unknown"
 
 
 def test_i2c_cli_bad_device_path(tmp_path):

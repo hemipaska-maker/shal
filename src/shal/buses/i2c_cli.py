@@ -85,6 +85,12 @@ class I2cCliBus(Driver, Transport, ByteTransport):
                     f"{out.stderr.decode(errors='replace').strip()[:200]}",
                     path=self.host.path, hop="i2c-cli",
                     txn=current_txn.get(), delivered="no")
+            result = parse_output(out.stdout)
+            want = sum(op.n for op in ops if isinstance(op, Read))
+            if len(result) < want:
+                raise HopError(f"i2c short read: {len(result)}/{want} bytes",
+                               path=self.host.path, hop="i2c-cli",
+                               txn=current_txn.get(), delivered="unknown")
             self.log.debug("txn %s", op_summary(ops), event="txn",
                            addr=f"0x{addr:02x}")
-            return parse_output(out.stdout)
+            return result

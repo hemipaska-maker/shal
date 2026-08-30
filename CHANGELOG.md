@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **`i2c-cli` short/empty read now raises `HopError`, not `IndexError`** (#108) — on
+  exit 0, `i2ctransfer` returning fewer bytes than the `Read` ops requested (including
+  a bare empty stdout) used to fall through as `parse_output(b"")` -> `b""` with no
+  raise; a downstream driver (e.g. `tmp102`) then indexed the empty result and died
+  with a bare `IndexError`, losing all `path`/`hop`/`delivered=` context. `i2c-cli.txn`
+  now raises `HopError(delivered="unknown")` on a short read, matching `spi-cli`'s
+  wording and style — read freshness (D12) is enforced for real, not just documented.
+- **`conformance` now probes read freshness (D12)** (#108) — `check_driver()`'s live
+  checks gained `_probe_freshness`: for a device driver bound behind a `shal,sim-*`
+  bus (which ship a `fail_delivered_unknown` hook), it forces one non-delivering hop
+  and requires a zero-arg read op to raise `HopError` rather than return a stale
+  value. Silent where it can't observe (a driver wrapping a third-party client —
+  SDK.md 1b/108 is explicit conformance can't see inside that), so it never fakes
+  coverage it doesn't have.
+- **Pin the MCP SDK major** (#107) — the `mcp` extra was `mcp>=1.0`, unbounded, so a clean
+  `pip install "pyshal[mcp]"` could resolve MCP 2.x, whose low-level API dropped the
+  `@server.list_tools()` / `@server.call_tool()` decorators `src/shal/mcp/server.py` is
+  written against, breaking `shal mcp` at import with `AttributeError: 'Server' object has
+  no attribute 'list_tools'`. Both the `mcp` and `dev` extras now pin `mcp>=1.0,<2`.
+
 ## [0.2.1] - 2026-06-23
 
 Cold-user blockers found by the 0.2.1 cold-install verification (run 1) — see #88.
