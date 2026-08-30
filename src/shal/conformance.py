@@ -20,7 +20,7 @@ from typing import Any
 from . import registry
 from .approval import AutoApprove, approver
 from .driver import inferred_side_effect
-from .errors import LimitError
+from .errors import HopError, LimitError
 from .transport import Transport
 
 _NUMERIC = {"number", "integer"}
@@ -131,6 +131,7 @@ def _live_checks(cls: type, topology: Any, report: Report) -> None:
         _probe_capabilities(drv, report)
         _probe_limits(hal, node, report)
         _probe_audit(hal, node, report)
+        _probe_freshness(node, report)
 
 
 def _find_node(hal, cls: type):
@@ -227,6 +228,48 @@ def _probe_audit(hal, node, report: Report) -> None:
     finally:
         audit.removeHandler(handler)
         audit.setLevel(prior)
+
+
+def _probe_freshness(node, report: Report) -> None:
+    """D12 (issue #108): a read returns a value only if the device answered
+    THIS call — else it must raise `HopError`, never a stale/default value.
+
+    Only checkable when the immediate parent bus exposes the sim
+    failure-injection hook (`fail_delivered_unknown`, shipped on every
+    `shal,sim-*` bus) — a driver wrapping a third-party client is invisible to
+    conformance by design (SDK.md 1b: 'conformance cannot see inside someone
+    else's client'), so this probe stays silent rather than faking coverage
+    for a shape it cannot observe."""
+    if isinstance(node.driver, Transport):
+        return  # buses are the plumbing this contract protects, not its subject
+    bus = getattr(node.driver, "bus", None)
+    if bus is None or not hasattr(bus, "fail_delivered_unknown"):
+        return  # no observable failure-injection hook on this parent bus
+    ops = type(node.driver).capability_ops()
+    schemas = getattr(node.driver, "_op_schemas", {}) or {}
+    target = next((name for name, fn in ops.items()
+                   if inferred_side_effect(fn) == "none"
+                   and not (schemas.get(name) or {}).get("required")), None)
+    if target is None:
+        return  # no zero-arg read op available to probe
+
+    bus.fail_delivered_unknown = True
+    try:
+        getattr(node.driver, target)()
+    except HopError:
+        report.checked.append(
+            f"live: freshness enforced ({target} raised HopError on a "
+            f"non-delivering hop, per D12)")
+    except Exception as e:  # noqa: BLE001 - report, don't crash the kit
+        report.problems.append(
+            f"{target}: a non-delivering hop raised {type(e).__name__}, not "
+            f"HopError — D12 requires raise-not-default (issue #108)")
+    else:
+        report.problems.append(
+            f"{target}: a non-delivering hop returned a value instead of "
+            f"raising HopError — D12 requires raise-not-default (issue #108)")
+    finally:
+        bus.fail_delivered_unknown = False
 
 
 def _sample(prop: dict) -> Any:
