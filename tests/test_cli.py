@@ -75,6 +75,16 @@ def test_docs_prints_the_in_package_guide(capsys):
     assert "add a device" in out.lower() and "side_effect" in out
 
 
+def test_docs_does_not_print_the_doc_standard_front_matter(capsys):
+    # the shipped docs carry `type:`/`owner:`/`reviewed:` front-matter for the repo's
+    # doc standard; `shal docs` prints the guide, not the bookkeeping (#119)
+    rc = cli.main(["docs"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.lstrip().startswith("# ")
+    assert "owner: repo-agent" not in out
+
+
 def test_agent_guide_is_bundled_in_the_package():
     # importable as package data → it ships in the wheel for a pip-only agent (#55)
     from importlib.resources import files

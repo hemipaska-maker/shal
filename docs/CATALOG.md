@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-12
+---
+
 # SHAL Bus & Driver Catalog
 
 A roadmap of the buses and device/service drivers SHAL aims to support, grouped

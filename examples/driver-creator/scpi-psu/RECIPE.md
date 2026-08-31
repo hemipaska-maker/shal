@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Regeneration recipe — Vexar VX3210 (driver-creator benchmark, case 2)
 
 **Instruction to the generation agent:** Using ONLY (a) the device documentation

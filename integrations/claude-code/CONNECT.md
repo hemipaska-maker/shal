@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Connect Claude to a SHAL topology (60 seconds)
 
 SHAL serves your topology to Claude as **gated tools** over MCP. The **core**

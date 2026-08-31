@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # DoD — pyshal cold-agent release flow (the rubric this harness scores)
 
 ## Outcome

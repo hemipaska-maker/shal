@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Regenerating the Deebot case
 
 **Stage 1 — the driver.** You are given exactly three inputs:

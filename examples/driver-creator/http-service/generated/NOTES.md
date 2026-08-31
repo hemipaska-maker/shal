@@ -1,3 +1,10 @@
+---
+type: log
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # NOTES — Lumen ChamberLink CL-340 driver (compatible `lumen,chamber-api`)
 
 ## Files read (the complete input set)

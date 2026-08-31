@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # SHAL — agent guide (add a device, no MCP needed)
 
 *This ships **inside** the `pyshal` package. Print it with `shal docs`. Provider-neutral:

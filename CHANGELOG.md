@@ -1,3 +1,10 @@
+---
+type: changelog
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-08-31
+---
+
 # Changelog
 
 All notable changes to this project are documented here. The format follows
@@ -5,6 +12,21 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+### Changed
+- **Every document now declares a `type` and an `owner`** (#119) — `doc-standard.md` v1.0
+  front-matter (`type`/`owner`/`scope`/`reviewed`) on all 55 markdown files; `ops`'
+  `doc-check.py` passes. `AGENTS.md` moved to `docs/agents/context.md` (the standard's
+  working-context path); `.agent-loop.yml` `review.standards_sources` follows it.
+- **One decision ledger, not two** (#119) — `docs/ARCHITECTURE.md` §5 is the ledger of
+  record. The still-load-bearing items of the v2.1 addendum were lifted into it as
+  **D17–D20** (validation split, error taxonomy, the single `shal.drivers` entry-point
+  group + bind-time wrapping, `provide_child_bus`); `DECISIONS - V2.1.md` moved to
+  `docs/design/archive/` marked superseded. `docs/agents/domain.md` now names the same
+  ledger and drops the never-used `docs/adr/` instruction.
+- **`shal docs` strips the front-matter** (#119) — `SDK.md` and `AGENT_GUIDE.md` ship in
+  the wheel and are typed like every other document, but the header is repo bookkeeping,
+  so the printed guide is unchanged for an agent reading it.
 
 ## [0.2.2] - 2026-08-31
 

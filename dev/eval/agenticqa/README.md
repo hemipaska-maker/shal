@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-22
+---
+
 # agenticQA — two-agent release-acceptance loop (issue #78)
 
 Prove a fresh `pyshal` artifact cold-installs and drives a device **through the

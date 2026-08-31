@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Driver Creator — the generation benchmark (issue #10)
 
 **Claim under test:** given device documentation and the SHAL skills, a coding
