@@ -43,17 +43,75 @@ hard_stops:
     - package.json
     - go.mod
     - Cargo.toml
-  # Globs that are genuinely security-sensitive -> flag if touched.
+  # Paths that are genuinely security-sensitive -> flag if touched.
   # Recalibrated 2026-07-19 (determlab work-method v1.0): risky = OUTSIDE the
   # issue's DoD rubric, not "matches a category". The old "**/*schema*" glob is
   # gone — SHAL ships typed tool schemas; that glob flagged half the codebase.
+  #
+  # Re-audited 2026-09-01 (#118) against `git ls-files`. Every entry below is
+  # verified to match at least one TRACKED file, and names the invariant it
+  # protects. A glob that matches nothing is silent — it reads as a live fence
+  # while protecting nothing, which is how "**/redact*" left the real sanitizer
+  # (src/shal/log.py) editable with no hard stop. Exact paths are used instead
+  # of wishful globs wherever one file carries the invariant.
   protected_paths:
-    - "**/auth/**"
-    - "**/security/**"
-    - "**/migrations/**"
-    - "**/approval.py"        # the actuation gate — the product's trust core
-    - "**/redact*"            # secret-redaction helpers
-    - "**/.env*"
+    - "src/shal/approval.py"  # D4's actuation gate: the Approver, the safe
+                              # default (deny when no one is there to ask), and
+                              # the limits -> approval -> I/O order
+    - "src/shal/driver.py"    # the op-wrapper layer where D4 is enforced;
+                              # `inferred_side_effect` is the single source of
+                              # truth for gate + audit + advertised hints
+                              # ("advertised == enforced") and is fail-closed
+    - "src/shal/limits.py"    # the pre-I/O limit check; layers may only TIGHTEN
+                              # bounds, and the advertised schema must equal the
+                              # enforced one
+    - "src/shal/log.py"       # `redact` / `redact_url` — the ONE definition of
+                              # what a sanitized address/secret looks like; every
+                              # caller that redacts calls it (#20, #101). Weaken
+                              # it and every call site weakens at once.
+    - "src/shal/loader.py"    # resolves ${ENV_VAR} and loads a sibling `.env`;
+                              # it handles secrets and logs addresses (#73/#117)
+    - "src/shal/mcp/bridge.py" # the gated tool surface: ticket lifecycle
+                              # (requested/approved/denied, single-use) and the
+                              # free-writes opt-out (#26/#27/#36)
+    - "**/.env*"              # real secrets, and the .env fixture that documents
+                              # their shape
+    - ".agent-loop.yml"       # this file — the fence list itself. A hard stop
+                              # fires on an AGENT's branch, not on a commit a
+                              # person makes directly, so this blocks exactly one
+                              # thing: an agent rewriting the config that governs
+                              # it. In bricks#18 an agent edited .agent-loop.yml
+                              # on its own branch and the only thing holding it
+                              # to comment lines was a line typed into the
+                              # coder's prompt by hand. A prompt is not a fence.
+    #
+    # Deliberately NOT fenced, so a routine change does not stop for a human:
+    #
+    # src/shal/buses/** (12 tracked files) and src/shal/transport.py — the
+    # highest-traffic code in the repo; fencing it would put a human in front of
+    # most driver and bus work. The three buses that can be handed a
+    # credential-bearing URL do route it through the fenced `redact_url` before
+    # it reaches a log line or an error string (http_bus.py:43/65, tcp.py:38/62,
+    # scpi_raw.py:39/63).
+    #   KNOWN GAP, and it is a code fix rather than something a fence solves:
+    #   several other buses interpolate the raw offending address into a
+    #   load-time LoadError or a runtime HopError with no `redact_url`. Do not
+    #   trust a list here — it goes stale the moment a bus is added. Run
+    #   `grep -rn '!r}' src/shal/buses/`; every hit not already wrapped in
+    #   `redact_url` is one of them (10 of 13 hits today). Tracked separately;
+    #   a hard stop on buses/** would not sanitize any of them.
+    #
+    # src/shal/hal.py and capabilities.py / registry.py / node.py (composition
+    # and lookup). hal.py:217 does render the MCP `destructiveHint`, so a bad
+    # edit there could make the advertisement disagree with the gate — but it
+    # renders it from `_GATED_EFFECTS` + `inferred_side_effect`, both defined in
+    # the fenced driver.py (driver.py:43 / driver.py:89); registry.py:147
+    # renders the same hint the same way, so fencing one and not the other would
+    # be arbitrary; and tests/test_mcp_bridge.py:242 pins advertised ==
+    # enforced.
+    #
+    # src/shal/mcp/server.py (a thin host adapter over the fenced bridge),
+    # src/shal/drivers/** and examples/** (device code, gated like any other).
   # Deleting a file the branch didn't create -> flag.
   flag_on_file_delete: true
   # Pre-1.0 (0.x semver, no external users): in-rubric public-API edits are

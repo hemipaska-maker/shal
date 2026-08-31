@@ -14,6 +14,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **`hard_stops.protected_paths` now fences the files that actually hold the invariants**
+  (#118) — four of the six inherited globs matched no tracked file (`**/auth/**`,
+  `**/security/**`, `**/migrations/**`, `**/redact*`), so the redaction sanitizer, the
+  gate's enforcement path and the `${ENV_VAR}` resolver were all editable by an
+  `agent:go` run with no hard stop. The dead globs are gone; `approval.py`, `driver.py`,
+  `limits.py`, `log.py`, `loader.py` and `mcp/bridge.py` are fenced by exact path, each
+  with an inline comment naming the invariant it protects, and `.agent-loop.yml` fences
+  itself so an agent cannot rewrite the config that governs it. Every entry is verified
+  to match at least one tracked file; the new set is a strict superset of the old one.
 - **Every document now declares a `type` and an `owner`** (#119) — `doc-standard.md` v1.0
   front-matter (`type`/`owner`/`scope`/`reviewed`) on all 55 markdown files; `ops`'
   `doc-check.py` passes. `AGENTS.md` moved to `docs/agents/context.md` (the standard's
