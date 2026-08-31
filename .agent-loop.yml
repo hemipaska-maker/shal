@@ -65,8 +65,10 @@ hard_stops:
     - "src/shal/limits.py"    # the pre-I/O limit check; layers may only TIGHTEN
                               # bounds, and the advertised schema must equal the
                               # enforced one
-    - "src/shal/log.py"       # `redact` / `redact_url` — the SINGLE sanitizer
-                              # every bus routes addresses through (#20, #101)
+    - "src/shal/log.py"       # `redact` / `redact_url` — the ONE definition of
+                              # what a sanitized address/secret looks like; every
+                              # caller that redacts calls it (#20, #101). Weaken
+                              # it and every call site weakens at once.
     - "src/shal/loader.py"    # resolves ${ENV_VAR} and loads a sibling `.env`;
                               # it handles secrets and logs addresses (#73/#117)
     - "src/shal/mcp/bridge.py" # the gated tool surface: ticket lifecycle
@@ -84,10 +86,31 @@ hard_stops:
                               # coder's prompt by hand. A prompt is not a fence.
     #
     # Deliberately NOT fenced, so a routine change does not stop for a human:
-    # src/shal/buses/** and src/shal/transport.py (they carry addresses but route
-    # every one through the fenced `redact_url`), src/shal/hal.py and
-    # capabilities.py / registry.py / node.py (composition and lookup — they
-    # cannot weaken the gate, which lives in the fenced wrapper),
+    #
+    # src/shal/buses/** (12 tracked files) and src/shal/transport.py — the
+    # highest-traffic code in the repo; fencing it would put a human in front of
+    # most driver and bus work. The three buses that can be handed a
+    # credential-bearing URL do route it through the fenced `redact_url` before
+    # it reaches a log line or an error string (http_bus.py:43/65, tcp.py:38/62,
+    # scpi_raw.py:39/63). The others take a device file or an integer address:
+    # local.py and mux.py never emit one, the sim buses echo only their own
+    # child grammar, and ssh.py passes `host.address` to ssh_argv (ssh.py:52)
+    # without ever logging it.
+    #   KNOWN GAP, and it is a code fix rather than something a fence solves:
+    #   i2c_cli.py:56 and spi_cli.py:32 echo `node.address!r` verbatim in their
+    #   load-time LoadError instead of wrapping it in `redact_url`, which is the
+    #   exact pattern tcp.py and scpi_raw.py wrap for #101. A hard stop on
+    #   buses/** would not sanitize those two lines — only fixing them does.
+    #
+    # src/shal/hal.py and capabilities.py / registry.py / node.py (composition
+    # and lookup). hal.py:217 does render the MCP `destructiveHint`, so a bad
+    # edit there could make the advertisement disagree with the gate — but it
+    # renders it from `_GATED_EFFECTS` + `inferred_side_effect`, both defined in
+    # the fenced driver.py (driver.py:43 / driver.py:89); registry.py:147
+    # renders the same hint the same way, so fencing one and not the other would
+    # be arbitrary; and tests/test_mcp_bridge.py:242 pins advertised ==
+    # enforced.
+    #
     # src/shal/mcp/server.py (a thin host adapter over the fenced bridge),
     # src/shal/drivers/** and examples/** (device code, gated like any other).
   # Deleting a file the branch didn't create -> flag.
