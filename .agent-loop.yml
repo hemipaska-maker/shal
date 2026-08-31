@@ -125,4 +125,3 @@ review:
     - docs/ARCHITECTURE.md    # §5 = the Decision Ledger (D1-D20). A PR that breaks a
                               # locked decision fails Standards — no taste argument needed.
     - docs/agents/          # includes context.md (was root AGENTS.md until #119)
-  spec_source: issue          # the "Spec" axis = the originating issue
