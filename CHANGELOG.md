@@ -28,6 +28,12 @@ All notable changes to this project are documented here. The format follows
   the wheel and are typed like every other document, but the header is repo bookkeeping,
   so the printed guide is unchanged for an agent reading it.
 
+### Fixed
+- **Load-time `LoadError` redacts credential-bearing addresses** (#101) — a malformed
+  `http(s)://user:pass@...` address (e.g. resolved from `${ENV}`) no longer echoes
+  userinfo credentials in the error text; the `http`, `tcp`, and `scpi-raw` buses now
+  route the echoed address through `redact_url`. Clean addresses still echo verbatim.
+
 ## [0.2.2] - 2026-08-31
 
 Restores `shal mcp` on a clean install, and makes the D12 read-freshness contract
