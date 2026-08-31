@@ -92,15 +92,14 @@ hard_stops:
     # most driver and bus work. The three buses that can be handed a
     # credential-bearing URL do route it through the fenced `redact_url` before
     # it reaches a log line or an error string (http_bus.py:43/65, tcp.py:38/62,
-    # scpi_raw.py:39/63). The others take a device file or an integer address:
-    # local.py and mux.py never emit one, the sim buses echo only their own
-    # child grammar, and ssh.py passes `host.address` to ssh_argv (ssh.py:52)
-    # without ever logging it.
+    # scpi_raw.py:39/63).
     #   KNOWN GAP, and it is a code fix rather than something a fence solves:
-    #   i2c_cli.py:56 and spi_cli.py:32 echo `node.address!r` verbatim in their
-    #   load-time LoadError instead of wrapping it in `redact_url`, which is the
-    #   exact pattern tcp.py and scpi_raw.py wrap for #101. A hard stop on
-    #   buses/** would not sanitize those two lines — only fixing them does.
+    #   several other buses interpolate the raw offending address into a
+    #   load-time LoadError or a runtime HopError with no `redact_url`. Do not
+    #   trust a list here — it goes stale the moment a bus is added. Run
+    #   `grep -rn '!r}' src/shal/buses/`; every hit not already wrapped in
+    #   `redact_url` is one of them (10 of 13 hits today). Tracked separately;
+    #   a hard stop on buses/** would not sanitize any of them.
     #
     # src/shal/hal.py and capabilities.py / registry.py / node.py (composition
     # and lookup). hal.py:217 does render the MCP `destructiveHint`, so a bad
