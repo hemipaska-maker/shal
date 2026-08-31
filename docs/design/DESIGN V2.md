@@ -1,3 +1,10 @@
+---
+type: spec
+owner: CTO
+scope: repo/shal
+reviewed: 2026-06-15
+---
+
 # SHAL — System/Software Hardware Abstraction Layer
 
 A framework for describing and controlling a HW and/or SW setup — a server wired to

@@ -59,9 +59,13 @@ class MyBus(Driver, Transport, MessageTransport):
    - `delivered="no"` — failure certainly BEFORE the request reached the device
      (connection refused, not connected, local exec missing).
    - `delivered="unknown"` — anything after send (timeout, dropped reply,
-     HTTP error response). The framework auto-retries ONLY idempotent ops and
-     ONLY on `delivered="no"`. Misreporting "unknown" as "no" causes double
-     side effects — when unsure, say "unknown".
+     HTTP error response, a `ByteTransport` short/empty read — fewer bytes
+     back than the `Read` ops requested; see `spi_cli.py`/`i2c_cli.py`). The
+     framework auto-retries ONLY idempotent ops and ONLY on `delivered="no"`.
+     Misreporting "unknown" as "no" causes double side effects — when unsure,
+     say "unknown". Never let a short/empty read fall through as a truncated
+     or zeroed value — that is a silent stale default, exactly what D12
+     forbids (issue #108).
    - Chain with `raise ... from e`; timeouts use `HopTimeout`.
 7. **Security defaults**: network buses are encrypted by default; plaintext is
    a per-node `insecure: true` opt-out checked at load. Secrets come from
@@ -117,6 +121,8 @@ package adds the entry point:
 - One happy-path roundtrip per kind (use a local fake server/exe — see
   `tests/test_buses.py` `_Echo` and the i2ctransfer shim).
 - `delivered="no"` vs `delivered="unknown"` paths each verified.
+- For a `ByteTransport`: a short/empty read (fewer bytes back than requested)
+  raises `HopError(delivered="unknown")` — never a truncated/zeroed value.
 - Connection caching: two ops, one connect.
 - `kinds()` reports exactly what is implemented.
 - TLS/insecure rule if network-facing.

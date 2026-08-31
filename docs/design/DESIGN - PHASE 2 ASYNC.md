@@ -1,3 +1,10 @@
+---
+type: spec
+owner: CTO
+scope: repo/shal
+reviewed: 2026-06-15
+---
+
 # SHAL — Phase 2 Async Design (streaming + watchdog)
 
 **Status:** design only — not implemented. **Scope:** streaming core + watchdog/safe-state.

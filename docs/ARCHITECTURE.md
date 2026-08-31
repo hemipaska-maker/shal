@@ -1,3 +1,10 @@
+---
+type: ledger
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-08-31
+---
+
 # SHAL — Architecture (north star)
 
 > **Living doc. High-level only** — details live in `docs/design/`. Every non-trivial
@@ -157,6 +164,15 @@ sequenceDiagram
 
 ## 5. Decision Ledger  *(locked — append, don't silently re-litigate)*
 
+> **This section is SHAL's Decision Ledger of record** under `decision-ledger-standard.md`
+> v1.0, and it **stays here** — grandfathered on purpose, not pending a move to
+> `docs/DECISIONS.md`. The decisions are load-bearing *because* they sit beside the
+> principles, components and flows that motivate them (D4 → §2's Gate, D15 → the bus
+> contract), `docs/agents/context.md` points every agent at this file as the single north star, and
+> the shipped in-wheel SDK already cites it by this path (`src/shal/SDK.md` → "ARCHITECTURE
+> D12"). Registered in `.agent-loop.yml` → `review.standards_sources`. Issues cite these
+> by number: `## Decision — Implements **D12** (read freshness is a contract).`
+
 | # | Decision | Source |
 |---|---|---|
 | D1 | **Device-agnostic core:** device **drivers** + **examples** aren't bundled (repo / community). Capability **contracts** and the Authoring Kit *do* ship (governed content — D8/D13). The line: **contracts ship, drivers don't** | #46 |
@@ -175,6 +191,24 @@ sequenceDiagram
 | D14 | **Keep the code class `Hal`** (avoids shadowing the `shal` module); "SHAL tree" is a doc-level concept only | O4 |
 | D15 | **Keep async / non-blocking open** (planned evolution). The seam is the **bus contract** (`txn` / `exchange`) — grow it to *submit-then-await + response correlation* ("held channels"); don't bake blocking-only assumptions *below* that contract. Real concurrency only on multiplexable transports | this doc |
 | D16 | **Agent-host adapters live outside the agnostic core.** Single-vendor host packs (Claude Code skills; future Cursor/Codex) live in `integrations/<host>/` (→ a `shal-integrations` repo), never in `src/shal/` or the wheel. **Open-standard** adapters (the `shal` CLI, MCP) stay in core. The neutral authoring contract (`src/shal/SDK.md` + shipped `shal docs`) is the source of truth the host packs render — the *agent* analog of D1 (contracts ship, host packs don't) | this doc |
+| D17 | **Validation splits in two:** the JSON Schema (`src/shal/schema/shal-v1.schema.json`) checks **structure only**; every semantic check (id uniqueness, address grammar, driver installed, `$ref` targets, env resolution) stays in the loader and runs **after** schema validation | `DECISIONS - V2.1.md` §1 |
+| D18 | **The error taxonomy is a contract:** `Error` → `LoadError` (anything wrong *before* runtime) and `HopError` (a runtime hop, carrying `path` / `hop` / `txn` / `delivered: "no" \| "unknown"`) → `HopTimeout`; `Busy` for a pinned mux channel; `Gap` is an **event, not an exception**. `delivered` is what makes D12's raise-don't-default rule and the never-auto-retry-an-unknown-write rule decidable | `DECISIONS - V2.1.md` §3 |
+| D19 | **One entry-point group — `shal.drivers`** — for drivers and buses alike; bus-ness comes from the transport **kinds** a class exposes, not from a second group. At bind time the framework wraps every public capability method: it assigns a `txn` id always, and adds reconnect-once/retry-once **only** to `@idempotent` ops | `DECISIONS - V2.1.md` §4 |
+| D20 | **A parent driver may expose a distinct bus per child:** `Driver.provide_child_bus(child)` → `Node.exposed_bus` is the single core hook a mux needs, which is why per-mux selection state lives on that shared object and never on the parent bus | `DECISIONS - V2.1.md` §Phase 1.1 |
 
 ### Open decisions
-*None — all resolved. New decisions get a `D##` row above (with their source); they don't get re-litigated silently.*
+*Named, not yet decided. An issue that needs one of these is **not** ready for `agent:go`.
+New decisions get a `D##` row above (with their source); they don't get re-litigated silently.*
+
+- **O5 — Does the ledger govern the *published artifact*, or only the source?** Nothing in
+  D1–D20 says the thing on PyPI must stay installable and startable. The 2026-08-30 audit
+  found the consequence: unbounded optional deps (`mcp>=1.0`) + CI with no `schedule:`
+  trigger meant a breaking SDK major landed in the published package unseen for 40 days
+  (#105, #106). Settled by deciding whether "shipped and working from a clean install" is
+  a locked decision with a standing check behind it, or release hygiene that lives outside
+  the ledger.
+
+### Superseded
+*Keep the history. A replaced decision moves here with what replaced it and why.*
+
+*None yet — D1–D20 are all live as of the 2026-08-30 audit; D17–D20 were lifted from the v2.1 addendum on 2026-08-31.*

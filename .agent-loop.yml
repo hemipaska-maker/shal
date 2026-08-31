@@ -16,11 +16,23 @@ auto_merge: true
 merge_method: squash        # squash | merge | rebase
 
 # Commands the coder/reviewer run. Detected from pyproject.toml + .github/workflows/ci.yml.
+#
+# These call the repo venv's interpreter EXPLICITLY rather than bare `python`, so a run
+# does not depend on the shell having activated .venv first. On this machine bare `python`
+# resolves to the Windows Store stub, which would fail the coder's first test round for a
+# reason that has nothing to do with the issue being worked.
+#
+# WINDOWS-LOCAL PATHS. `.venv/Scripts/` is `.venv/bin/` on Linux/macOS — if the loop is
+# ever run elsewhere, or cloud mode in .github/workflows/agent-loop.yml is enabled, these
+# four lines need changing. Create the venv with:
+#   <python3.12+> -m venv .venv && .venv/Scripts/python.exe -m pip install -e ".[dev]" build
+# `build` is installed separately on purpose: it is NOT in the `dev` extra, so `python -m
+# build` fails on a plain `pip install -e ".[dev]"`.
 commands:
-  install: "pip install -e \".[dev]\""
-  test:    "python -m pytest"
-  lint:    "ruff check src tests"
-  build:   "python -m build"
+  install: ".venv/Scripts/python.exe -m pip install -e \".[dev]\" build"
+  test:    ".venv/Scripts/python.exe -m pytest"
+  lint:    ".venv/Scripts/python.exe -m ruff check src tests"
+  build:   ".venv/Scripts/python.exe -m build"
 
 # What forces a human flag (see reference/hard-stops.md). Tune per repo.
 hard_stops:
@@ -52,6 +64,7 @@ hard_stops:
 # What the reviewer reads.
 review:
   standards_sources:          # the "Standards" axis (auto-detected; keep what exists)
-    - AGENTS.md
-    - docs/agents/
+    - docs/ARCHITECTURE.md    # §5 = the Decision Ledger (D1-D20). A PR that breaks a
+                              # locked decision fails Standards — no taste argument needed.
+    - docs/agents/          # includes context.md (was root AGENTS.md until #119)
   spec_source: issue          # the "Spec" axis = the originating issue

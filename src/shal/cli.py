@@ -68,13 +68,26 @@ def _cmd_mcp(args) -> int:
     return server.main(argv)
 
 
+def _strip_front_matter(text: str) -> str:
+    """Drop a leading `---` front-matter block. Both shipped docs carry the repo's
+    doc-standard header (type/owner/reviewed) — that is bookkeeping for the repo, not
+    part of the contract an agent is meant to read, so `shal docs` never prints it."""
+    if not text.startswith("---"):
+        return text
+    close = text.find("\n---", 3)
+    if close == -1:
+        return text
+    eol = text.find("\n", close + 1)
+    return text[eol + 1:].lstrip("\r\n") if eol != -1 else ""
+
+
 def _cmd_docs(args) -> int:
     """Print an in-package authoring doc so a pip-only agent has it offline: the
     provider-neutral 'add a device' guide by default, or the complete Driver & Bus SDK
     contract with --sdk. Both ship in the wheel as package data (#55, #97)."""
     from importlib.resources import files
     doc = "SDK.md" if getattr(args, "sdk", False) else "AGENT_GUIDE.md"
-    print((files("shal") / doc).read_text(encoding="utf-8"))
+    print(_strip_front_matter((files("shal") / doc).read_text(encoding="utf-8")))
     return 0
 
 

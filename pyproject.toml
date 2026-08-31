@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyshal"
-version = "0.2.1"
+version = "0.2.2"
 description = "System/Software Hardware Abstraction Layer — device-tree-inspired, dynamic, user-space, network-capable"
 readme = "README.md"
 license = { text = "MIT" }
@@ -36,13 +36,13 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = [
-    "mcp>=1.0",
+    "mcp>=1.0,<2",
 ]
 dev = [
     "pytest>=7",
     "pytest-cov>=4",
     "ruff>=0.4",
-    "mcp>=1.0",
+    "mcp>=1.0,<2",
 ]
 
 [project.scripts]

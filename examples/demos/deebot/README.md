@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-14
+---
+
 # Deebot over SHAL (playground)
 
 Controls an Ecovacs Deebot robot vacuum through SHAL's Phase 1 sync core.

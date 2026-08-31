@@ -1,3 +1,10 @@
+---
+type: log
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # SHAL — New-User Field Trial · COO Report
 *2026-06-16 · prepared for the COO · read time ~3 min*
 

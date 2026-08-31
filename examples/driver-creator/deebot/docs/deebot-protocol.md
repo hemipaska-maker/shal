@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-13
+---
+
 # ECOVACS DEEBOT N20 — Device Command Protocol (JSON dialect, V2 family)
 
 Document DN20-PROTO rev 1.2 — applies to the DEEBOT N20 series robot vacuum

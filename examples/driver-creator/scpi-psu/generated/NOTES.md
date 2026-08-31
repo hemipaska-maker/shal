@@ -1,3 +1,10 @@
+---
+type: log
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # NOTES — Vexar VX3210 SHAL driver (driver-creator benchmark, case 2)
 
 ## Files read (the complete list)

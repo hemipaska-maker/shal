@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Cold-start verify — the re-runnable 0.2.x DoD harness
 
 Proves the release promise the way a stranger experiences it: a **cold AI agent**, given

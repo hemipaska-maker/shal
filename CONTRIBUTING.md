@@ -1,3 +1,10 @@
+---
+type: contributing
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Contributing to SHAL
 
 Thanks for your interest. SHAL is a standard-in-the-making, so the bar for the
@@ -12,8 +19,7 @@ Three audiences, in order of how rare they are: **bus authors** (core/experts) �
 capabilities). A change that pushes complexity toward end users is rejected.
 Start with the **north star — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** (the
 high-level model + the **Decision Ledger**); the locked detail lives in
-[docs/design/DESIGN V2.md](docs/design/DESIGN%20V2.md) and
-[docs/design/DECISIONS - V2.1.md](docs/design/DECISIONS%20-%20V2.1.md). Read them before
+[docs/design/DESIGN V2.md](docs/design/DESIGN%20V2.md). Read them before
 proposing core changes — **any non-trivial change must stay consistent with the
 architecture, or amend its Decision Ledger in the same PR.** The invariants are not up
 for re-litigation.

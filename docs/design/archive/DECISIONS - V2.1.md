@@ -1,4 +1,15 @@
+---
+type: archive
+owner: CTO
+scope: repo/shal
+reviewed: 2026-08-31
+---
+
 # SHAL — Implementation decisions (v2.1 addendum)
+
+> **Superseded by [`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md) §5, the Decision Ledger
+> of record.** Kept for provenance only — the still-load-bearing items are D17–D20 there.
+> Do not cite this file as a live decision.
 
 Resolves DESIGN V2 open questions needed for Phase 1 (sync core). 2026-06-10.
 

@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # Agent brief — SHAL new-user trial (fill the <…> placeholders, then use as the agent prompt)
 
 > Fill these in for your device, then paste the whole thing as the agent's prompt.

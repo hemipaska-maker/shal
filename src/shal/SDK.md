@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # SHAL Driver & Bus SDK
 
 The complete authoring contract. **Everything you need to write a working

@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # SHAL new-user trial (device-agnostic)
 
 A lightweight, repeatable way to put SHAL in front of a **brand-new user** — an agent

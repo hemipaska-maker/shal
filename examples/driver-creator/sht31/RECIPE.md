@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Regenerating the SHT31 driver
 
 Hand a generation agent exactly this instruction:

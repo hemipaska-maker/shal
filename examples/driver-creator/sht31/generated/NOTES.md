@@ -1,3 +1,10 @@
+---
+type: log
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # SHT31-DIS driver — generation notes
 
 ## Files read (the only files opened)

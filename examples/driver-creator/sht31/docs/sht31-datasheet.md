@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-13
+---
+
 # SHT31-DIS — Digital Humidity and Temperature Sensor
 
 **Datasheet excerpt — Sensirion AG** · Part: SHT31-DIS · Interface: I²C

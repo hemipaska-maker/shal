@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-22
+---
+
 # agenticQA manuscript schema
 
 A **manuscript** is the only device-specific input to the agenticQA control loop

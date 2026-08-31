@@ -1,3 +1,10 @@
+---
+type: agent-context
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Issue tracker: GitHub
 
 Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.

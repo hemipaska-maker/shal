@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Live MCP loop — reproducible Tier-2 gate over the shipped `shal mcp` adapter
 
 `live_mcp_loop.py` drives a **real device through the actuation gate over the MCP wire**
