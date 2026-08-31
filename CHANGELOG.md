@@ -21,10 +21,11 @@ audit (`decision-ledger-standard.md` v1.0) — see #107 and #108.
   now raises `HopError(delivered="unknown")` on a short read, matching `spi-cli`'s
   wording and style — read freshness (D12) is enforced for real, not just documented.
 
-  *Upgrading:* code that treated an empty `i2c-cli` read as a normal return value now
-  sees `HopError`. That is the intent — the old path lost `path`/`hop`/`delivered=`
-  and surfaced one layer up as an unrelated `IndexError` — but it is a behaviour
-  change on a bundled bus, so it is called out here rather than buried under *Fixed*.
+  *Upgrading — this is a breaking change.* An `i2c-cli` short or empty read used to
+  return empty bytes; it now raises `HopError`. Any code that caught the old shape, or
+  that relied on the read returning at all, breaks. Pre-1.0 permits the change and the
+  old behaviour was wrong — it discarded `path`/`hop`/`delivered=` and resurfaced as an
+  unrelated `IndexError` a layer up — but callers must update, not merely reinstall.
 
 ### Fixed
 - **`conformance` now probes read freshness (D12)** (#108) — `check_driver()`'s live
