@@ -7,6 +7,19 @@ reviewed: 2026-08-31
 
 # Agent context — SHAL
 
+> **Role charter: `ops/agents/repo-agent.md`** in the `determlab/ops` repo — a
+> sibling repo, so that is a path, not a link. It defines what the repo-agent
+> role is in every repo and what it may never do. This file is the
+> shal-specific half; the charter is the half that is the same in shal, bricks,
+> aos and agora.
+>
+> The one rule worth restating here, because the rest rests on it: **only the
+> session with the code may claim something is true in the code.** A sentence
+> like *"`hal.py:217` reads `_GATED_EFFECTS`"* cannot be written from a
+> distance — someone has to open the file. That is why this repo's ledger,
+> changelog, contributor docs and `docs/agents/*` are written here and by no
+> other role.
+
 ## Overview
 SHAL (System/Software Hardware Abstraction Layer) is a Python library for
 describing a hardware/software setup in YAML and controlling it from Python —
@@ -44,7 +57,7 @@ if it runs.
 
 ## Architecture
 
-> **North star — read first: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).** It holds the
+> **North star — read first: [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md).** It holds the
 > high-level component model (the two faces: *Run* / *Author*), the key flows, the user/API
 > interfaces, and the **Decision Ledger (D1–D20)**. **Every non-trivial change MUST be
 > consistent with it — or amend the Ledger in the same PR.** Don't drift from it silently;
