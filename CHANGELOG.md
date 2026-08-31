@@ -6,7 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Fixed
+## [0.2.2] - 2026-08-31
+
+Restores `shal mcp` on a clean install, and makes the D12 read-freshness contract
+enforced rather than merely documented. Both found by the 2026-08-30 Decision Ledger
+audit (`decision-ledger-standard.md` v1.0) — see #107 and #108.
+
+### Changed
 - **`i2c-cli` short/empty read now raises `HopError`, not `IndexError`** (#108) — on
   exit 0, `i2ctransfer` returning fewer bytes than the `Read` ops requested (including
   a bare empty stdout) used to fall through as `parse_output(b"")` -> `b""` with no
@@ -14,6 +20,13 @@ All notable changes to this project are documented here. The format follows
   with a bare `IndexError`, losing all `path`/`hop`/`delivered=` context. `i2c-cli.txn`
   now raises `HopError(delivered="unknown")` on a short read, matching `spi-cli`'s
   wording and style — read freshness (D12) is enforced for real, not just documented.
+
+  *Upgrading:* code that treated an empty `i2c-cli` read as a normal return value now
+  sees `HopError`. That is the intent — the old path lost `path`/`hop`/`delivered=`
+  and surfaced one layer up as an unrelated `IndexError` — but it is a behaviour
+  change on a bundled bus, so it is called out here rather than buried under *Fixed*.
+
+### Fixed
 - **`conformance` now probes read freshness (D12)** (#108) — `check_driver()`'s live
   checks gained `_probe_freshness`: for a device driver bound behind a `shal,sim-*`
   bus (which ship a `fail_delivered_unknown` hook), it forces one non-delivering hop
