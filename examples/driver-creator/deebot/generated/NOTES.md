@@ -1,3 +1,10 @@
+---
+type: log
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # Deebot N20 — generation notes
 
 Generated under the controlled benchmark: docs + SDK + skills only, no reads of

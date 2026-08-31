@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Sonos over SHAL (example)
 
 Controls a Sonos speaker through SHAL by wrapping the [`soco`](https://github.com/SoCo/SoCo)

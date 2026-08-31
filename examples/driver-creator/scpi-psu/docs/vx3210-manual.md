@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-13
+---
+
 # Vexar Instruments VX3210 — Programming Manual (Excerpt)
 
 **Single-Output Programmable DC Power Supply**

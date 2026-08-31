@@ -1,3 +1,10 @@
+---
+type: readme
+owner: CMO
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 <div align="center">
 
 # SHAL
@@ -365,7 +372,7 @@ hardware — swap in a real transport later, and your code doesn't change.
 - [**Driver SDK** — the complete authoring contract](https://github.com/determlab/shal/blob/main/src/shal/SDK.md) (write a driver from docs alone)
 - [Driver / bus catalog](https://github.com/determlab/shal/blob/main/docs/CATALOG.md)
 - [Architecture & locked decisions](https://github.com/determlab/shal/blob/main/docs/design/DESIGN%20V2.md)
-- [Phase 1 implementation decisions](https://github.com/determlab/shal/blob/main/docs/design/DECISIONS%20-%20V2.1.md)
+- [Phase 1 implementation decisions](https://github.com/determlab/shal/blob/main/docs/design/archive/DECISIONS%20-%20V2.1.md)
 - [Phase 2 async + watchdog spec](https://github.com/determlab/shal/blob/main/docs/design/DESIGN%20-%20PHASE%202%20ASYNC.md)
 - Build guides: write a [driver](https://github.com/determlab/shal/blob/main/integrations/claude-code/skills/shal-build-driver/SKILL.md),
   a [bus](https://github.com/determlab/shal/blob/main/integrations/claude-code/skills/shal-build-bus/SKILL.md), or a

@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Operator prompt (FIXED — device-agnostic; same every run)
 
 You are a brand-new SHAL user (a cold agent). A fresh venv with `pyshal[mcp]` is already

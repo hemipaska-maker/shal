@@ -1,3 +1,10 @@
+---
+type: contributing
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-15
+---
+
 # Releasing
 
 How `pyshal` is versioned and published. (Distribution name: **`pyshal`**; import

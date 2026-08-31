@@ -16,7 +16,7 @@ Closes #<!-- issue number -->
 - [ ] Docs updated: project hub / status refreshed; superseded docs archived
 
 ## Architecture consistency
-<!-- docs/ARCHITECTURE.md is the north star (Decision Ledger D1–D15). -->
+<!-- docs/ARCHITECTURE.md is the north star (Decision Ledger D1–D20). -->
 - [ ] Consistent with `docs/ARCHITECTURE.md` — **or** this PR amends the Decision Ledger (note which `D##`)
 
 ## Reviewer verdict

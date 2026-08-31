@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-13
+---
+
 # ChamberLink CL-340 — API integration guide
 
 Applies to: Lumen Instruments ChamberLink CL-340 environmental test chamber

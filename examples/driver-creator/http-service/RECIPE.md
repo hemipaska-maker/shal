@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Driver-creator recipe — case 3: HTTP service (Lumen ChamberLink)
 
 **Instruction to the generation agent:** Using ONLY the device documentation in

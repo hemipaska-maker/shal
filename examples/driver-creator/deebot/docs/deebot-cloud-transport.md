@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-13
+---
+
 # ECOVACS Cloud — Account & Command Transport Protocol (DN20-CLOUD rev 1.1)
 
 How an application reaches a DEEBOT N20 through the ECOVACS cloud: the

@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-17
+---
+
 # SHAL new-user trial — <DEVICE> · <DATE>
 
 > Filled in by the evaluator agent. Be specific and honest. A PARTIAL/NO with crisp

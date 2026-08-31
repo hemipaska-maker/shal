@@ -1,4 +1,11 @@
-# AGENTS.md
+---
+type: agent-context
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-08-31
+---
+
+# Agent context — SHAL
 
 ## Overview
 SHAL (System/Software Hardware Abstraction Layer) is a Python library for
@@ -39,7 +46,7 @@ if it runs.
 
 > **North star — read first: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).** It holds the
 > high-level component model (the two faces: *Run* / *Author*), the key flows, the user/API
-> interfaces, and the **Decision Ledger (D1–D15)**. **Every non-trivial change MUST be
+> interfaces, and the **Decision Ledger (D1–D20)**. **Every non-trivial change MUST be
 > consistent with it — or amend the Ledger in the same PR.** Don't drift from it silently;
 > if a change fights the doc, change the doc on purpose.
 
@@ -57,12 +64,13 @@ if it runs.
 - `tests/` — pytest suite (mirrors `src/` concerns)
 - `examples/demos/` — runnable showcases (Deebot cloud, microservice mesh); **not shipped**
 - `examples/driver-creator/` — the doc→driver generation benchmark; **not shipped**
-- `docs/design/` — `DESIGN V2.md` (architecture, locked decisions), `DECISIONS - V2.1.md`
+- `docs/design/` — `DESIGN V2.md` (architecture detail); superseded design docs live in
+  `docs/design/archive/`
 
-Before any core change: read **`docs/ARCHITECTURE.md` first** (the north star + Decision
-Ledger), then `docs/design/DESIGN V2.md` / `docs/design/DECISIONS - V2.1.md` for the
-detail. Decisions in all three are **locked** — don't re-litigate them in a PR; if one
-genuinely needs to change, amend the Decision Ledger in the same PR.
+Before any core change: read **`docs/ARCHITECTURE.md` first** — §5 is the **Decision
+Ledger of record** (the only one), then `docs/design/DESIGN V2.md` for the detail. The
+ledger is **locked** — don't re-litigate a row in a PR; if one genuinely needs to change,
+amend it in the same PR.
 
 ## Conventions
 - Python 3.10+, type hints everywhere, docstrings on public APIs
@@ -150,7 +158,7 @@ Canonical triage vocabulary, used as-is (`needs-triage`, `needs-info`, `ready-fo
 
 ### Domain docs
 
-**Single-context** repo; locked decisions live in `docs/design/DESIGN V2.md` + `docs/design/DECISIONS - V2.1.md` (the de-facto ADRs), glossary in module docstrings. See `docs/agents/domain.md`.
+**Single-context** repo; locked decisions live in `docs/ARCHITECTURE.md` §5 (the Decision Ledger of record), design detail in `docs/design/DESIGN V2.md`, glossary in module docstrings. See `docs/agents/domain.md`.
 
 ## Asking Questions
 Open an issue at https://github.com/determlab/shal/issues and tag @hemipaska.

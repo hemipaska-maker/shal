@@ -1,3 +1,10 @@
+---
+type: reference
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-23
+---
+
 # Device card — Ecovacs Deebot N20 (the gate hero)
 
 | field | value |

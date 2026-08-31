@@ -1,3 +1,10 @@
+---
+type: readme
+owner: repo-agent
+scope: repo/shal
+reviewed: 2026-06-14
+---
+
 # The Mesh Showcase (Proposal B, implemented)
 
 A real microservice estate — REST services over HTTP, a job worker over raw
