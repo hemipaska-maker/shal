@@ -38,6 +38,12 @@ All notable changes to this project are documented here. The format follows
   so the printed guide is unchanged for an agent reading it.
 
 ### Fixed
+- **The bind log no longer leaks credentials** (#117) — `loader.py` wrote
+  `str(node.address)` straight into the DEBUG `bind` record's `addr` field, so an
+  address resolved from `${ENV_VAR}` carrying `user:pass@` or a token query string was
+  written in plaintext to whatever handler the host app attached, on every *successful*
+  load. The address now routes through `redact_url` like every other address that
+  reaches a log or an error. Clean addresses still log unredacted.
 - **Load-time `LoadError` redacts credential-bearing addresses** (#101) — a malformed
   `http(s)://user:pass@...` address (e.g. resolved from `${ENV}`) no longer echoes
   userinfo credentials in the error text; the `http`, `tcp`, and `scpi-raw` buses now

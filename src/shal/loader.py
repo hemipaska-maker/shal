@@ -19,6 +19,7 @@ import yaml
 
 from . import registry
 from .errors import LoadError
+from .log import redact_url
 from .node import Node
 from .transport import Transport
 
@@ -297,9 +298,10 @@ def _bind_drivers(roots: list[Node]) -> None:
                 bus.validate_address(node.address)  # grammar at load, decision 2
 
             drv.bind(node)
+            # redact_url: a ${ENV} address may carry userinfo creds (issue #117)
             logger.debug("bound %s at %s", compatible, node.path,
                          extra={"event": "bind", "path": node.path,
-                                "addr": str(node.address)})
+                                "addr": redact_url(str(node.address))})
             for child in node.children.values():
                 child_bus = drv.provide_child_bus(child)
                 if child_bus is not None:
