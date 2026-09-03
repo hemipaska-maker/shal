@@ -14,6 +14,27 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **The release workflow now fails if the version is already on PyPI** (#116) —
+  `release.yml` publishes with `skip-existing: true`, which exists so that re-running a
+  partially-failed upload does not explode. The cost is that "uploaded nothing" and
+  "uploaded everything" produce the same green check: a release cut against a version
+  that is already live — a bad bump, a re-run after a manual upload, a tag pointing at
+  the wrong commit — would report success while PyPI kept serving the old wheel. That is
+  the same shape as #105/#106, a green signal sitting beside a stale artifact, and it is
+  the shape this repo is trying to stop having. A new step between `Build` and `Publish
+  to PyPI` reads the version out of the built wheel filename — the wheel is the artifact
+  that actually gets uploaded, so it is the thing whose version must not already exist,
+  and reading it from the artifact rather than from `pyproject.toml` keeps the check
+  honest if the version ever becomes dynamic — queries
+  `https://pypi.org/pypi/pyshal/json`, and exits non-zero if that version is already
+  released, naming the version and its upload date. A 404 from that endpoint means the
+  project has no releases at all, so nothing can collide and the guard proceeds; an
+  unreachable PyPI fails the release instead, because a release wrongly blocked costs one
+  re-run of the job while a release wrongly reported green costs a month of nobody
+  noticing. `skip-existing: true` is deliberately kept: the guard is what makes it safe,
+  so it now only ever covers a retried upload of a genuinely new version. Both the step
+  and the `skip-existing` line carry comments saying so, because the two look redundant
+  side by side and are not.
 - **CI runs on a schedule, and a canary job installs dependencies unpinned** (#106) —
   `ci.yml` fired only on `push: [main]` and `pull_request`, so 40 days without a commit
   meant 40 days without a single CI run: the `mcp` 2.x break landed 2026-07-28 and
