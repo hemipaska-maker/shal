@@ -19,7 +19,30 @@ is one implementation, not two.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
+import sys
+
+
+def _use_selector_loop_on_win32() -> None:
+    """Windows: give the *command* a SelectorEventLoop by default (issue #94).
+
+    A driver that wraps an `aiomqtt`-style library runs its own asyncio loop; on
+    win32 the default `ProactorEventLoop` has no `add_reader`, so that loop dies
+    with `NotImplementedError`. `shal mcp` set this for itself (#87) but `shal
+    probe` did not — the same driver served over MCP and failed under the CLI a
+    cold user is told to try first.
+
+    It belongs here, once per command, and **never at import time**: `shal` is a
+    library, and silently swapping the event-loop policy of a process that merely
+    imported it is the same overreach as the locked non-negotiable "the library
+    never configures logging" (`docs/agents/context.md`) — apps choose global
+    state, libraries don't. `shal.mcp.server.main` (the legacy `shal-mcp` console
+    script, which does not come through `main` here) calls this same helper, so
+    there is one implementation of the choice, not two.
+    """
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def _add_drivers_arg(p: argparse.ArgumentParser) -> None:
@@ -93,10 +116,12 @@ def _cmd_docs(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        import sys
         sys.stdout.reconfigure(encoding="utf-8")  # avoid Windows-codepage mojibake
     except Exception:
         pass
+    # every subcommand can reach a driver op (probe/tools now, more later), so the
+    # loop-policy choice is made once here rather than per subcommand (#94)
+    _use_selector_loop_on_win32()
 
     ap = argparse.ArgumentParser(
         prog="shal",

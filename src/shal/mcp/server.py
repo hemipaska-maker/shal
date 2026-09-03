@@ -20,6 +20,7 @@ import json
 import os
 import sys
 
+from ..cli import _use_selector_loop_on_win32
 from .bridge import Bridge
 
 
@@ -193,6 +194,10 @@ def main(argv: list[str] | None = None) -> int:
                          "auto = free writes (opt-out, recorded in the audit log)")
     args = ap.parse_args(argv)
 
+    # Before any driver op — `--probe` reads too, not just the server (#87, #94).
+    # `shal mcp` already came through `shal.cli.main`; the legacy `shal-mcp` script
+    # lands straight here, so this entry point makes the same choice explicitly.
+    _use_selector_loop_on_win32()
     _import_drivers(args.drivers)
     hal = _resolve_hal(args.topology)
     try:
@@ -207,11 +212,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"shal-mcp: warning: {path} not ready yet "
                   f"({type(err).__name__}: {err}) — reads to it may be slow until it connects",
                   file=sys.stderr)
-
-        # Windows: aiomqtt-based drivers (e.g. Deebot) need a SelectorEventLoop; the
-        # default ProactorEventLoop has no add_reader -> NotImplementedError (#87).
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
         server, stdio_server = _build_server(bridge)
 
