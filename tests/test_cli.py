@@ -95,6 +95,32 @@ def test_agent_guide_is_bundled_in_the_package():
     assert "shal probe" in text
 
 
+def test_guide_cloud_device_example_loads(tmp_path, monkeypatch):
+    # #95: the guide's cloud-device example (config: + address, no IP) must
+    # actually load — not just read well. Pull the fenced yaml block straight
+    # out of the shipped guide so a future edit that breaks it fails here too.
+    import re
+    from importlib.resources import files
+
+    import shal
+
+    text = (files("shal") / "AGENT_GUIDE.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```yaml\n(.*?)```", text, re.DOTALL)
+    block = next(b for b in blocks if "vac-serial-123" in b)
+    assert "address" in block  # the whole point of the example (#95)
+
+    @shal.register
+    class MyThing(shal.Driver):
+        compatible = "community,my-thing"
+        kind = None
+
+    monkeypatch.setenv("CLOUD_ACCOUNT", "someone@example.com")
+    p = tmp_path / "cloud.yaml"
+    p.write_text(block, encoding="utf-8")
+    with shal.load(p) as hal:
+        assert hal.get_device("vac").node.address == "vac-serial-123"
+
+
 def test_guide_symbols_and_commands_actually_work():
     """Eval regression: the bundled guide must not teach a symbol that isn't
     exported, nor a `shal probe` arg order that argparse rejects."""

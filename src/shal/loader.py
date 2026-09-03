@@ -146,6 +146,29 @@ def load_tree(source: str | os.PathLike | Mapping) -> tuple[list[Node], dict[str
     return roots, ids
 
 
+_ADDRESS_ROUTES_TO = ("address", "routes", "to")
+
+
+def _is_address_routes_to_oneof(error: Any) -> bool:
+    """True if `error` is the node-level oneOf that enforces "exactly one of
+    address/routes/to" ($defs/node/allOf[0]/then/oneOf, #95). Identified by the
+    *shape* of the failing subschemas (three branches, each `required: [<key>]`
+    for one of the three keys) rather than by its schema_path, so it still
+    matches through $ref/children recursion and survives a schema reformat."""
+    if error.validator != "oneOf":
+        return False
+    branches = error.validator_value
+    if not isinstance(branches, list) or len(branches) != len(_ADDRESS_ROUTES_TO):
+        return False
+    required = set()
+    for branch in branches:
+        req = branch.get("required") if isinstance(branch, dict) else None
+        if not (isinstance(req, list) and len(req) == 1):
+            return False
+        required.add(req[0])
+    return required == set(_ADDRESS_ROUTES_TO)
+
+
 def _validate_schema(doc: Any, *, source: str) -> None:
     try:
         import jsonschema
@@ -158,6 +181,26 @@ def _validate_schema(doc: Any, *, source: str) -> None:
     if errors:
         first = errors[0]
         where = "/".join(str(p) for p in first.absolute_path) or "<root>"
+        instance = first.instance
+        # #95: a node with NONE of address/routes/to (the common "forgot the
+        # address on a cloud/config-only device" slip) trips this same oneOf as
+        # a node that has e.g. BOTH address and routes — jsonschema's rendering
+        # can't tell the two apart ("is not valid under any of the given
+        # schemas"). Disambiguate on the instance itself: only a node missing
+        # all three (and not a `use:` node, which legitimately has none —
+        # it inherits them from its template, and never reaches this oneOf in
+        # the first place since the `if: not required use` guard excludes it,
+        # checked again here for safety) gets the friendly rewrite. A node that
+        # HAS an address but fails for some other reason never matches
+        # (`_is_address_routes_to_oneof` requires validator == "oneOf" on THIS
+        # error, and any node with a real address that's merely misshapen
+        # elsewhere fails a different, non-oneOf validator first) — so it keeps
+        # getting its own honest message instead of being misdiagnosed.
+        if (_is_address_routes_to_oneof(first) and isinstance(instance, dict)
+                and "use" not in instance
+                and not any(k in instance for k in _ADDRESS_ROUTES_TO)):
+            raise LoadError(f"{source}: node '{where}' needs exactly one of "
+                            f"address | routes | to")
         raise LoadError(f"{source}: schema violation at {where}: {first.message}"
                         + (f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""))
 

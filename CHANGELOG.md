@@ -37,6 +37,23 @@ All notable changes to this project are documented here. The format follows
   `shal --help` / `shal docs` / `shal-mcp --help`); `packaging` doesn't repeat
   that — it's a static metadata check and needs no venv of its own.
 
+### Fixed
+- **A node missing `address`/`routes`/`to` now names the node and the rule**
+  (#95) — a cloud device's natural first draft (`id`/`driver`/`config:`, no
+  `address`) used to fail with jsonschema's raw *"is not valid under any of
+  the given schemas"*, naming neither the node nor what was wrong.
+  `_validate_schema` in `src/shal/loader.py` now recognizes this one shape —
+  the schema's own address/routes/to `oneOf` failing because the node
+  instance has none of the three keys — and raises `<node>: needs exactly one
+  of address | routes | to` instead. Detection matches on the failing
+  subschema's *shape* (three branches, each `required: [<key>]`), not its
+  location, and on the instance itself lacking all three keys, so a node that
+  already has an `address` but fails for an unrelated reason (an unknown key,
+  or `address` + `routes` both given) keeps its own honest message, and a
+  `use:` node — which legitimately has none of the three, inheriting them
+  from its template — is unaffected. `src/shal/AGENT_GUIDE.md` now shows a
+  cloud-device example with both `config:` and `address`.
+
 ### Changed
 - **The release workflow now fails if the version is already on PyPI** (#116) —
   `release.yml` publishes with `skip-existing: true`, which exists so that re-running a
