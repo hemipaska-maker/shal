@@ -13,7 +13,7 @@ from typing import Any
 from .. import registry
 from ..driver import Driver
 from ..errors import HopError, LoadError
-from ..log import bus_logger, current_txn
+from ..log import bus_logger, current_txn, redact_url
 from ..node import Node
 from ..transport import ByteTransport, CommandTransport, Op, Read, Transport, Write
 
@@ -28,8 +28,10 @@ class SpiCliBus(Driver, Transport, ByteTransport):
     def __init__(self, node: Node) -> None:
         Transport.__init__(self, node)
         if _DEV_RE.match(str(node.address)) is None:
+            # redact_url: own bus address, ${ENV}-resolved like tcp/scpi-raw's
+            # host:port — a misplaced creds-URL must not echo verbatim (issue #126)
             raise LoadError(f"{node.path}: spi-cli address must be /dev/spidevX.Y, "
-                            f"got {node.address!r}")
+                            f"got {redact_url(str(node.address))!r}")
         self.dev = str(node.address)
         self.log = bus_logger("spi_cli", node.path)
 

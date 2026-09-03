@@ -10,7 +10,7 @@ from typing import Any
 from .. import registry
 from ..driver import Driver
 from ..errors import HopError, LoadError
-from ..log import bus_logger, current_txn
+from ..log import bus_logger, current_txn, redact_url
 from ..node import Node
 from ..transport import ByteTransport, CommandTransport, Op, Read, Transport, Write
 
@@ -52,13 +52,17 @@ class I2cCliBus(Driver, Transport, ByteTransport):
         Transport.__init__(self, node)
         m = _DEV_RE.match(str(node.address))
         if m is None:
+            # redact_url: own bus address, ${ENV}-resolved like tcp/scpi-raw's
+            # host:port — a misplaced creds-URL must not echo verbatim (issue #126)
             raise LoadError(f"{node.path}: i2c-cli address must be /dev/i2c-<n>, "
-                            f"got {node.address!r}")
+                            f"got {redact_url(str(node.address))!r}")
         self.busnum = int(m.group(1))
         self.log = bus_logger("i2c_cli", node.path)
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, int) or not (0x03 <= addr <= 0x77):
+            # non-credential: a 7-bit int I2C address (grammar 0x03-0x77) — not
+            # a URL/endpoint field, so the raw value is kept for debugging (#126)
             raise LoadError(f"i2c-cli: invalid 7-bit I2C address {addr!r} "
                             f"(grammar: 0x03-0x77)")
 

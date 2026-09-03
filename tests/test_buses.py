@@ -15,6 +15,8 @@ import pytest
 import shal
 from shal.buses import http_bus
 from shal.buses.i2c_cli import I2cCliBus, parse_output, render_ops
+from shal.buses.scpi_raw import ScpiRawBus
+from shal.buses.sim import SimI2cBus
 from shal.buses.ssh import ssh_argv
 from shal.log import redact_url
 from shal.node import Node
@@ -180,6 +182,110 @@ def test_i2c_cli_bad_device_path(tmp_path):
     """)
     with pytest.raises(shal.LoadError, match="/dev/i2c"):
         shal.load(p)
+
+
+def test_i2c_cli_bad_device_path_redacts_credentials(tmp_path):
+    # issue #126: i2c-cli's own bus address is ${ENV}-resolved just like
+    # tcp/scpi-raw's host:port — a misplaced creds URL must not echo verbatim
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          here:
+            driver: shal,local
+            address: localhost
+            children:
+              i2c0:
+                driver: "shal,i2c-cli"
+                address: "https://user:secret@device.local/x?token=abc"
+    """)
+    with pytest.raises(shal.LoadError, match="/dev/i2c") as ei:
+        shal.load(p)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc" not in msg
+    assert "device.local" in msg
+
+
+def test_i2c_cli_child_address_error_keeps_value_unredacted():
+    # issue #126: documented non-credential — a 7-bit int I2C address; a
+    # non-int value here is a topology typo, not an endpoint, so it echoes
+    # verbatim. Pins the decision so a future blanket-redaction PR must
+    # reconsider rather than silently mask debugging info.
+    root = Node("here")
+    child = Node("i2c0", address="/dev/i2c-1", parent=root)
+    bus = I2cCliBus(child)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("user@host")
+    assert "user@host" in str(ei.value)
+
+
+def test_spi_cli_bad_device_path_redacts_credentials(tmp_path):
+    # issue #126: spi-cli's own bus address is ${ENV}-resolved just like
+    # tcp/scpi-raw's host:port — a misplaced creds URL must not echo verbatim
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          here:
+            driver: shal,local
+            address: localhost
+            children:
+              spi0:
+                driver: "shal,spi-cli"
+                address: "https://user:secret@device.local/x?token=abc"
+    """)
+    with pytest.raises(shal.LoadError, match="spidev") as ei:
+        shal.load(p)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc" not in msg
+    assert "device.local" in msg
+
+
+def test_mux_bad_channel_keeps_value_unredacted(tmp_path):
+    # issue #126: documented non-credential — a mux channel number; pins the
+    # decision so a future blanket-redaction PR must reconsider
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          bench:
+            driver: shal,sim-i2c
+            address: sim0
+            children:
+              mux0:
+                driver: nxp,pca9548
+                address: 0x70
+                children:
+                  ch0:
+                    address: "user@host"
+                    children:
+                      d: {driver: "ti,tmp102", address: 0x48}
+    """)
+    with pytest.raises(shal.LoadError, match="pca9548 channel") as ei:
+        shal.load(p)
+    assert "user@host" in str(ei.value)
+
+
+def test_sim_i2c_child_address_error_keeps_value_unredacted():
+    # issue #126: documented non-credential — a 7-bit int I2C address (the
+    # sim-i2c twin of i2c-cli's own check); pins the decision so a future
+    # blanket-redaction PR must reconsider
+    node = Node("bench", address="sim0")
+    bus = SimI2cBus(node)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("user@host")
+    assert "user@host" in str(ei.value)
+
+
+def test_scpi_raw_child_address_error_keeps_value_unredacted():
+    # issue #126: documented non-credential — an opaque instrument/channel
+    # label, logged unredacted elsewhere (exchange's addr=str(addr)); pins the
+    # decision so a future blanket-redaction PR must reconsider
+    node = Node("scpi0", address="10.0.0.5:5025")
+    node.spec = {"insecure": True}
+    bus = ScpiRawBus(node)
+    with pytest.raises(shal.LoadError, match="instrument/channel label"):
+        bus.validate_address("")
+    with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
+        bus.validate_address(["user@host"])
+    assert "user@host" in str(ei.value)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="executable shim needs POSIX")

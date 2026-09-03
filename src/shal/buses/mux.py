@@ -77,6 +77,8 @@ class Pca9548(Driver):
     def provide_child_bus(self, child: Node) -> Transport:
         ch = child.address
         if not isinstance(ch, int) or not (0 <= ch < self.N_CHANNELS):
+            # non-credential: a mux channel number, a small int 0-7 — not a
+            # URL/endpoint field, so the raw value is kept for debugging (#126)
             raise LoadError(f"{child.path}: pca9548 channel must be 0-"
                             f"{self.N_CHANNELS - 1}, got {ch!r}")
         return MuxChannel(child, upstream=self.bus, state=self._state,

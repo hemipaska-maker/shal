@@ -182,6 +182,8 @@ class SimI2cBus(Driver, Transport, ByteTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, int) or not (0x03 <= addr <= 0x77):
+            # non-credential: a 7-bit int I2C address (grammar 0x03-0x77) — not
+            # a URL/endpoint field, so the raw value is kept for debugging (#126)
             raise LoadError(f"sim-i2c: invalid 7-bit I2C address {addr!r} "
                             f"(grammar: 0x03-0x77)")
 

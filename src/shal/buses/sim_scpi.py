@@ -88,6 +88,10 @@ class SimScpiBus(Driver, Transport, MessageTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, (str, int)) or str(addr) == "":
+            # non-credential: an opaque instrument/channel label, logged
+            # unredacted elsewhere on the success path (e.g. exchange's
+            # `addr=str(addr)`) — redacting here would hide the exact typo
+            # this message exists to surface (#126)
             raise LoadError(f"sim-scpi: child address must be a non-empty "
                             f"instrument/channel label, got {addr!r}")
 
@@ -125,6 +129,9 @@ class SimScpiBus(Driver, Transport, MessageTransport):
                                txn=current_txn.get(), delivered="no")
             model = self._models.get(addr)
             if model is None:
+                # non-credential: an already-validated opaque instrument/channel
+                # label (non-empty str/int, see validate_address); this bus is
+                # an in-memory sim, never a real network endpoint (#126)
                 raise HopError(f"no instrument at {addr!r}", path=self.host.path,
                                hop="sim-scpi", txn=current_txn.get())
             reply = model.scpi(msg["scpi"])

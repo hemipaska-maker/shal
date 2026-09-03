@@ -77,6 +77,10 @@ class ScpiRawBus(Driver, Transport, MessageTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, (str, int)) or str(addr) == "":
+            # non-credential: an opaque instrument/channel label, logged
+            # unredacted elsewhere on the success path (e.g. exchange's
+            # `addr=str(addr)`) — redacting here would hide the exact typo
+            # this message exists to surface (#126)
             raise LoadError(f"scpi-raw: child address must be a non-empty "
                             f"instrument/channel label, got {addr!r}")
 

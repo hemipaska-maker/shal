@@ -6,8 +6,9 @@ import textwrap
 import pytest
 
 import shal
-from shal.buses.sim_msg import msg_sim_model
-from shal.buses.sim_scpi import scpi_sim_model
+from shal.buses.sim_msg import SimMsgBus, msg_sim_model
+from shal.buses.sim_scpi import SimScpiBus, scpi_sim_model
+from shal.node import Node
 
 
 def write(tmp_path, body: str):
@@ -123,3 +124,59 @@ def test_msg_unknown_address_is_a_hop_error(tmp_path):
         bus = hal.get_node("svc").driver
         with pytest.raises(shal.HopError):
             bus.exchange("ghost", {"cmd": "status"})
+
+
+def test_sim_msg_child_address_error_keeps_value_unredacted():
+    # issue #126: documented non-credential — an opaque service/device label,
+    # logged unredacted elsewhere on the success path (exchange's
+    # addr=str(addr)); pins the decision so a future blanket-redaction PR
+    # must reconsider
+    node = Node("svc", address="sim0")
+    bus = SimMsgBus(node)
+    with pytest.raises(shal.LoadError, match="service/device label") as ei:
+        bus.validate_address(["user@host"])
+    assert "user@host" in str(ei.value)
+
+
+def test_sim_msg_unknown_address_keeps_value_unredacted(tmp_path):
+    # issue #126: documented non-credential — the label is already validated
+    # (non-empty str/int) and the bus is an in-memory sim, never a real
+    # network endpoint; pins the decision unredacted
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          svc: {id: svc, driver: "shal,sim-msg", address: sim0}
+    """)
+    with shal.load(p) as hal:
+        bus = hal.get_node("svc").driver
+        with pytest.raises(shal.HopError, match="no service at") as ei:
+            bus.exchange("user@host", {"cmd": "status"})
+    assert "user@host" in str(ei.value)
+
+
+def test_sim_scpi_child_address_error_keeps_value_unredacted():
+    # issue #126: documented non-credential — an opaque instrument/channel
+    # label, logged unredacted elsewhere on the success path (exchange's
+    # addr=str(addr)); pins the decision so a future blanket-redaction PR
+    # must reconsider
+    node = Node("bench", address="sim0")
+    bus = SimScpiBus(node)
+    with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
+        bus.validate_address(["user@host"])
+    assert "user@host" in str(ei.value)
+
+
+def test_sim_scpi_unknown_instrument_keeps_value_unredacted(tmp_path):
+    # issue #126: documented non-credential — the label is already validated
+    # (non-empty str/int) and the bus is an in-memory sim, never a real
+    # network endpoint; pins the decision unredacted
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          bench: {id: bench, driver: "shal,sim-scpi", address: sim0}
+    """)
+    with shal.load(p) as hal:
+        bus = hal.get_node("bench").driver
+        with pytest.raises(shal.HopError, match="no instrument at") as ei:
+            bus.exchange("user@host", {"scpi": "*IDN?", "query": True})
+    assert "user@host" in str(ei.value)

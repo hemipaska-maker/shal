@@ -52,6 +52,10 @@ class SimMsgBus(Driver, Transport, MessageTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, (str, int)) or str(addr) == "":
+            # non-credential: an opaque service/device label, logged unredacted
+            # elsewhere on the success path (e.g. exchange's `addr=str(addr)`) —
+            # redacting here would hide the exact typo this message exists to
+            # surface (#126)
             raise LoadError(f"sim-msg: child address must be a non-empty "
                             f"service/device label, got {addr!r}")
 
@@ -89,6 +93,9 @@ class SimMsgBus(Driver, Transport, MessageTransport):
                                txn=current_txn.get(), delivered="no")
             model = self._models.get(addr)
             if model is None:
+                # non-credential: an already-validated opaque service/device
+                # label (non-empty str/int, see validate_address); this bus is
+                # an in-memory sim, never a real network endpoint (#126)
                 raise HopError(f"no service at {addr!r}", path=self.host.path,
                                hop="sim-msg", txn=current_txn.get())
             reply = model.handle(msg)

@@ -104,6 +104,17 @@ All notable changes to this project are documented here. The format follows
   so the printed guide is unchanged for an agent reading it.
 
 ### Fixed
+- **The remaining bus address echoes from #101 are resolved, site by site** (#126) —
+  ten `LoadError`/`HopError` sites across `src/shal/buses/` still interpolated a raw
+  address. Each was judged on its own: `i2c_cli.py`'s and `spi_cli.py`'s own bus
+  address (a device path, but `${ENV}`-resolved exactly like tcp/scpi-raw's
+  host:port) now routes through `redact_url` too. The other eight — 7-bit I2C
+  ints (`i2c_cli.py`, `sim.py`), a mux channel int (`mux.py`), and opaque
+  instrument/service/channel labels (`scpi_raw.py`, `sim_msg.py`, `sim_scpi.py`) —
+  are documented `# non-credential` in place: these values are logged unredacted
+  on the success path already, and redacting them would strip the exact typo the
+  error message exists to show. `drivers/rigol_dp832.py:26` stays out of scope
+  (a SCPI channel label, not a credential).
 - **Every `shal` command picks the Windows selector event loop, not just `shal mcp`**
   (#94) — on win32 a driver that wraps an `aiomqtt`-style library runs its own asyncio
   loop, and the default `ProactorEventLoop` has no `add_reader`, so that loop dies with
