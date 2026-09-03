@@ -13,6 +13,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **A `packaging` CI job checks the built wheel's own metadata, not the source
+  that declares it** (#123) — `test`/`examples` install `.[dev]` from a repo
+  checkout, so the wheel's `Requires-Dist` was never once exercised; that gap
+  is exactly how `mcp>=1.0` shipped with no upper bound and broke every fresh
+  `pip install "pyshal[mcp]"` for 34 days while CI stayed green (#105/#106).
+  `dev/packaging/check_dist.py` builds the wheel, reads its METADATA, and
+  fails if (1) a third-party import that runs at module scope in `src/shal`
+  (i.e. at `import shal` time) has no matching base dependency declared, or
+  (2) any declared dependency (base or extra) has no upper bound and no
+  written exemption in the script. A *lazy* import — nested inside a
+  function/method, like the `mcp` SDK import in `src/shal/mcp/server.py` or
+  the `jsonschema` import in `src/shal/loader.py:_validate_schema` — is
+  deliberately exempt from (1): it only breaks the feature that calls it, not
+  `import shal`. `pyyaml` and `jsonschema` now carry `<7`/`<5` ceilings, the
+  same convention as `mcp>=1.0,<2`; `pytest`/`pytest-cov`/`ruff` (the `dev`
+  extra) are exempted with a written reason instead — they're never part of a
+  plain `pip install pyshal`, and CI's `test`/`examples` jobs already install
+  and exercise them on every PR, so a breaking major there fails loudly right
+  away instead of silently for 34 days. The clean-venv, no-extras wheel
+  install already lives in the `build` job (installs the wheel, runs
+  `shal --help` / `shal docs` / `shal-mcp --help`); `packaging` doesn't repeat
+  that — it's a static metadata check and needs no venv of its own.
+
 ### Changed
 - **The release workflow now fails if the version is already on PyPI** (#116) —
   `release.yml` publishes with `skip-existing: true`, which exists so that re-running a

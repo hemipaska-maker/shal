@@ -134,8 +134,8 @@ These are invariants, not preferences. A change that violates one is wrong:
 1. Branch: `feat/<short-desc>` or `fix/<short-desc>` (off `main`)
 2. Conventional commit prefixes: `feat:`, `fix:`, `chore:`, `docs:`, `test:`
 3. Open a PR; link the issue with "Closes #<num>"
-4. CI must be green (test matrix on Linux + Windows × Python 3.10–3.13, ruff, build)
-   — no merge without green
+4. CI must be green (test matrix on Linux + Windows × Python 3.10–3.13, ruff, build,
+   packaging) — no merge without green
 5. Squash-merge to `main`
 6. End commit messages with: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
 
@@ -145,6 +145,24 @@ These are invariants, not preferences. A change that violates one is wrong:
 - Release: cut a GitHub **Release**; `release.yml` then builds and publishes to PyPI
   via Trusted Publishing (configure the publisher once at pypi.org). Don't upload
   to PyPI manually.
+
+## Packaging (`packaging` CI job, #123)
+CI's `test`/`examples` jobs install `.[dev]` from a repo checkout — they never
+install what `pip install pyshal` actually produces, so a bad `Requires-Dist`
+was never once exercised. That's exactly how `mcp>=1.0` shipped with no upper
+bound and broke every fresh `pip install "pyshal[mcp]"` for 34 days while CI
+stayed green (#105/#106). The `packaging` job builds the wheel and runs
+`dev/packaging/check_dist.py` against its own METADATA (not `pyproject.toml`):
+it fails if a third-party import that runs at **module scope** in `src/shal`
+(i.e. at `import shal` time) isn't a declared base dependency, and if any
+declared dependency has no upper bound and no written exemption
+(`UNBOUNDED_EXEMPT` in that script). A **lazy** import — nested inside a
+function/method, like the `mcp` SDK import in `src/shal/mcp/server.py` or the
+`jsonschema` import in `src/shal/loader.py:_validate_schema` — is exempt from
+the first check on purpose: it only breaks the feature that calls it, not
+`import shal`. The clean-venv, no-extras wheel install (`shal --help` /
+`shal docs` / `shal-mcp --help`, AGENT_GUIDE.md ships) already lives in the
+`build` job; `packaging` doesn't repeat it — it's a static metadata check.
 
 ## Common Pitfalls
 - Don't bypass any non-negotiable above to make a test pass — fix the root cause
