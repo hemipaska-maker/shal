@@ -23,7 +23,56 @@ jobs:
         run: |
           pip install build
           python -m build
+      # DO NOT DELETE THIS STEP as redundant with `skip-existing` below — it is the
+      # other half of it. `skip-existing: true` lets a re-run of a partially-failed
+      # publish finish instead of exploding, but it also makes "uploaded nothing"
+      # and "uploaded everything" the same green check. So a release cut against a
+      # version already live — a bad bump, a re-run after a manual upload, a tag on
+      # the wrong commit — would report success while PyPI still serves the old
+      # wheel. A green signal beside a stale artifact is the failure this repo is
+      # trying to stop having (#116). This step turns that case red; `skip-existing`
+      # then only ever covers a genuinely new version, which is what it is for.
+      - name: Fail if this version is already on PyPI
+        run: |
+          python - <<'PY'
+          import glob, json, os, sys, urllib.error, urllib.request
+
+          # The version comes from the built wheel, not from pyproject.toml: the wheel
+          # is the artifact that actually gets uploaded, so it is the thing whose
+          # version must not already exist. (Hence this step runs after Build.)
+          wheels = glob.glob("dist/*.whl")
+          if len(wheels) != 1:
+              sys.exit(f"expected exactly one wheel in dist/, found {wheels}")
+          version = os.path.basename(wheels[0]).split("-")[1]
+
+          try:
+              with urllib.request.urlopen("https://pypi.org/pypi/pyshal/json", timeout=30) as r:
+                  releases = json.load(r).get("releases", {})
+          except urllib.error.HTTPError as e:
+              # 404 = the project has no releases at all (or is a brand-new name).
+              # Nothing can collide, so this is "version is new", not an error.
+              if e.code != 404:
+                  sys.exit(f"PyPI answered HTTP {e.code}; cannot prove {version} is new. Refusing to publish.")
+              releases = {}
+          except Exception as e:
+              # PyPI unreachable => fail closed. A release wrongly blocked is a re-run
+              # of this job; a release wrongly reported green is a stale wheel nobody
+              # notices for a month. The second is the more expensive mistake here.
+              sys.exit(f"PyPI unreachable ({e}); cannot prove {version} is new. Refusing to publish.")
+
+          if version in releases:
+              files = releases[version]
+              when = files[0]["upload_time_iso_8601"] if files else "an earlier run"
+              sys.exit(
+                  f"pyshal {version} is ALREADY on PyPI (released {when}, {len(files)} file(s)). "
+                  f"This release would publish nothing and still report success. "
+                  f"Bump the version in pyproject.toml, re-tag, and cut a new release."
+              )
+          print(f"pyshal {version} is not on PyPI yet - proceeding.")
+          PY
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          # Safe only because the step above already proved the version is new:
+          # this now covers a retried upload of a new version, never a silent no-op.
           skip-existing: true   # don't fail a re-run if the version is already on PyPI
