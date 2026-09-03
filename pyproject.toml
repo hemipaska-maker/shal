@@ -30,8 +30,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "pyyaml>=6.0",
-    "jsonschema>=4.18",
+    # Bounded at the next major, same convention as `mcp>=1.0,<2` below (#123)
+    # — an unbounded floor is exactly the shape that broke `pyshal[mcp]` for
+    # 34 days (#105/#106): `pip install` happily took a future major nobody
+    # here had tested against.
+    "pyyaml>=6.0,<7",
+    "jsonschema>=4.18,<5",
 ]
 
 [project.optional-dependencies]

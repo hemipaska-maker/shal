@@ -57,6 +57,35 @@ jobs:
           python examples/demos/deebot/demo_sim.py
           python examples/demos/mesh/demo_mesh.py
 
+  packaging:
+    # Checks the *built wheel's* metadata, not the source that declares it
+    # (#123). `test`/`examples` install `.[dev]` from a repo checkout, so a
+    # bad `Requires-Dist` has never once been exercised: pyshal 0.2.1 shipped
+    # `mcp>=1.0` with no upper bound, and `pip install "pyshal[mcp]"` broke
+    # on every fresh install for 34 days while every test stayed green
+    # (#105/#106) — because no test ever installed the wheel.
+    #
+    # The clean-venv wheel install already lives in `build` below: it
+    # installs the wheel with no extras into a fresh venv and runs the CLI.
+    # This job does not repeat that — it's a static check of the wheel's
+    # METADATA against what src/shal actually imports, so it needs no venv
+    # of its own; see dev/packaging/check_dist.py for the two things it
+    # checks and why.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          pip install build twine packaging
+          python -m build
+      - name: twine check — wheel metadata is well-formed
+        run: twine check dist/*
+      - name: Declared deps vs. what src/shal actually imports at module scope, and bound coverage
+        run: python dev/packaging/check_dist.py dist
+
   build:
     runs-on: ubuntu-latest
     steps:
