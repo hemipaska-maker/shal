@@ -1,6 +1,7 @@
 """Bus suite: mux (incl. the v1 two-mux regression), local, ssh argv,
 i2c-cli rendering, http TLS rule, tcp roundtrip."""
 import json
+import logging
 import socketserver
 import stat
 import sys
@@ -335,6 +336,66 @@ def test_http_load_error_clean_address_not_masked(tmp_path):
     """)
     with pytest.raises(shal.LoadError, match="got 'device.local'"):
         shal.load(p)
+
+
+def _capture_shal_debug(fn):
+    """Run `fn` with a capturing handler on the 'shal' logger at DEBUG, then
+    detach it. The library never configures logging — the app (here, the test)
+    attaches and removes its own handler."""
+    records: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Capture(level=logging.DEBUG)
+    log = logging.getLogger("shal")
+    prev = log.level
+    log.addHandler(handler)
+    log.setLevel(logging.DEBUG)
+    try:
+        fn()
+    finally:
+        log.removeHandler(handler)
+        log.setLevel(prev)
+    return records
+
+
+def test_bind_log_redacts_credentials_in_address(tmp_path):
+    # issue #117: the happy path — a *valid* creds-bearing address binds fine,
+    # and the DEBUG bind record must not carry the password anywhere
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          api: {driver: "shal,http", address: "https://user:secret@device.local/v1?token=abc"}
+    """)
+    records = _capture_shal_debug(lambda: shal.load(p).close())
+    binds = [r for r in records if getattr(r, "event", "") == "bind"]
+    assert binds, "no bind record emitted"
+    for r in records:
+        # the `addr` field *and* the formatted message — a future change that
+        # moves the address into the message text must still fail this test
+        assert "secret" not in str(getattr(r, "addr", ""))
+        assert "token=abc" not in str(getattr(r, "addr", ""))
+        assert "secret" not in r.getMessage() and "token=abc" not in r.getMessage()
+    assert binds[0].addr == "https://device.local/v1"  # endpoint kept, creds gone
+
+
+@pytest.mark.parametrize("address, expected", [
+    ("https://device.local/v1", "https://device.local/v1"),   # clean URL
+    ("sim0", "sim0"),                                          # opaque label
+])
+def test_bind_log_keeps_clean_address_unredacted(tmp_path, address, expected):
+    # no false masking: over-redaction destroys the log's operational value
+    driver = "shal,http" if "://" in address else "shal,sim-i2c"
+    p = write(tmp_path, f"""
+        shal_version: 1
+        root:
+          dev: {{driver: "{driver}", address: "{address}"}}
+    """)
+    records = _capture_shal_debug(lambda: shal.load(p).close())
+    binds = [r for r in records if getattr(r, "event", "") == "bind"]
+    assert [r.addr for r in binds] == [expected]
 
 
 def test_http_error_redacts_credentials_in_url(tmp_path, monkeypatch):
