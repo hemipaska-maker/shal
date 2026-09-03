@@ -119,9 +119,36 @@ jobs:
         run: pip install --upgrade pyyaml jsonschema mcp pytest pytest-cov
       - name: Resolved versions
         run: pip list
-      - name: Import the MCP server (the #105 break was at import time)
+      - name: MCP SDK imports at all (the suite below would skip, not fail)
+        # tests/test_mcp_server.py:5 is `pytest.importorskip("mcp")` — correct for
+        # the normal suite, where `mcp` is an optional extra. Here it is a hole: if
+        # a future major breaks plain `import mcp`, every MCP test SKIPS and the
+        # canary reports green — the exact false-green #106 exists to prevent. So
+        # assert it hard here, before pytest runs. Not fixed by editing the test.
         run: |
-          python -c "import shal, shal.mcp.server; print('shal', shal.__version__)"
+          python -c "import mcp, mcp.types, mcp.server, mcp.server.stdio; from importlib.metadata import version; print('mcp', version('mcp'))"
+      - name: Construct an MCP server (#105 broke at construction, not at import)
+        # `import shal.mcp.server` does NOT load the SDK — the `mcp` imports live
+        # inside `_build_server()` (src/shal/mcp/server.py:29-31), deliberately, to
+        # keep the core at two dependencies. `--help` exits inside argparse, long
+        # before a server exists. Verified locally: after `import shal.mcp.server`,
+        # `"mcp" in sys.modules` is False. So neither an import nor a `--help` can
+        # see an incompatible SDK; only building a server can. #105 was
+        # `AttributeError: 'Server' object has no attribute 'list_tools'`, raised
+        # while `_build_server` registers its handlers — which is what this runs.
+        run: |
+          python - <<'PY'
+          import shal
+          from shal.mcp import Bridge
+          from shal.mcp.server import _build_server
+          print("shal", shal.__version__)
+          with shal.load("tests/setup_sim.yaml") as hal:
+              bridge = Bridge(hal)
+              _build_server(bridge)   # registers @server.list_tools / @server.call_tool
+              print("built an MCP server over", len(bridge.tool_defs()), "tools")
+          PY
+      - name: CLI entry points still start (argparse only — reaches no MCP code)
+        run: |
           shal-mcp --help > /dev/null
           shal mcp --help > /dev/null
       - name: Test

@@ -23,9 +23,13 @@ All notable changes to this project are documented here. The format follows
   most congested) and on `workflow_dispatch`. A new `latest-deps` job installs the
   package with `--no-deps` and then `pip install --upgrade`s `pyyaml`, `jsonschema` and
   `mcp` unpinned, so it deliberately resolves past the declared ceilings (`mcp>=1.0,<2`
-  from #107) that the normal `test` job can never see past; it imports `shal.mcp.server`
-  and runs the suite, so the next upstream major fails our build instead of only failing
-  users. The job is additive and not a required check — an upstream release is news, not
+  from #107) that the normal `test` job can never see past; it then asserts `import mcp`
+  hard (the suite's `pytest.importorskip("mcp")` would otherwise *skip* into a green
+  canary), builds a real MCP server via `_build_server` — importing `shal.mcp.server`
+  proves nothing, since the SDK import is lazily inside that function, and #105's
+  `AttributeError: 'Server' object has no attribute 'list_tools'` only fires when the
+  handlers are registered — and runs the suite, so the next upstream major fails our
+  build instead of only failing users. The job is additive and not a required check — an upstream release is news, not
   a broken PR — and it is gated to scheduled/manual runs, so it never marks an unrelated
   PR red. It carries no `continue-on-error`: a red canary must actually be red, or nobody
   looks. Note that GitHub disables scheduled workflows after 60 days of repository
