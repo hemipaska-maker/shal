@@ -59,6 +59,19 @@ All notable changes to this project are documented here. The format follows
   so the printed guide is unchanged for an agent reading it.
 
 ### Fixed
+- **Every `shal` command picks the Windows selector event loop, not just `shal mcp`**
+  (#94) — on win32 a driver that wraps an `aiomqtt`-style library runs its own asyncio
+  loop, and the default `ProactorEventLoop` has no `add_reader`, so that loop dies with
+  `NotImplementedError`. `shal mcp` set `WindowsSelectorEventLoopPolicy` for itself
+  (#87); `shal probe` went straight to `bridge.call` and did not, so the same driver
+  served fine over MCP and failed under the CLI a cold user is told to try first. The
+  choice now lives in one helper (`shal.cli._use_selector_loop_on_win32`), called once
+  at the top of `shal.cli.main` — so `probe`, `tools`, `mcp` and every subcommand added
+  later are at parity — and at the top of `shal.mcp.server.main`, which the legacy
+  `shal-mcp` script enters directly; `server.py`'s own inline copy is gone, leaving one
+  mechanism. It is set by the *commands*, never at import: a host app that merely
+  imports `shal` keeps its own event-loop policy, the same rule as "the library never
+  configures logging".
 - **The bind log no longer leaks credentials** (#117) — `loader.py` wrote
   `str(node.address)` straight into the DEBUG `bind` record's `addr` field, so an
   address resolved from `${ENV_VAR}` carrying `user:pass@` or a token query string was

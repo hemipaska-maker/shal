@@ -1,4 +1,7 @@
 """shal CLI front door (issue #54): probe / tools dispatch over a local driver."""
+import asyncio
+import sys
+
 import pytest
 
 from shal import cli
@@ -111,6 +114,65 @@ def test_guide_symbols_and_commands_actually_work():
         cmd = line.split("#", 1)[0]  # drop trailing comments
         m = re.search(r"shal probe \S+\s+--drivers\s+\S+\s+(\S+)", cmd)
         assert m is None, f"guide shows a probe order argparse rejects: {line!r}"
+
+
+class _FakeSelectorPolicy:
+    """Stands in for `asyncio.WindowsSelectorEventLoopPolicy`, which only exists on
+    Windows — so these tests assert the same thing on every platform CI runs."""
+
+
+@pytest.fixture
+def policy_spy(monkeypatch):
+    """Record what the CLI sets as the event-loop policy, without setting one."""
+    seen = []
+    monkeypatch.setattr(asyncio, "WindowsSelectorEventLoopPolicy",
+                        _FakeSelectorPolicy, raising=False)
+    monkeypatch.setattr(asyncio, "set_event_loop_policy", seen.append)
+    return seen
+
+
+@pytest.mark.parametrize("cmd", ["probe", "tools"])
+def test_every_command_uses_a_selector_loop_on_win32(setup, policy_spy, monkeypatch,
+                                                     capsys, cmd):
+    """#94: `shal mcp` set the selector policy, `shal probe` didn't — so an
+    aiomqtt-style driver served over MCP and died with NotImplementedError under
+    the CLI. `main` sets it once, so every subcommand is at parity."""
+    yml, drv = setup
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert cli.main([cmd, yml, "--drivers", drv]) == 0
+    capsys.readouterr()
+    assert len(policy_spy) == 1 and isinstance(policy_spy[0], _FakeSelectorPolicy)
+
+
+def test_the_loop_policy_is_left_alone_off_win32(setup, policy_spy, monkeypatch, capsys):
+    yml, drv = setup
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert cli.main(["probe", yml, "--drivers", drv]) == 0
+    capsys.readouterr()
+    assert policy_spy == []
+
+
+def test_import_alone_never_touches_the_loop_policy(policy_spy, monkeypatch):
+    """The library must not swap a host app's event-loop policy just because it was
+    imported — same rule as 'the library never configures logging'. Only a command
+    (`shal.cli.main` / `shal.mcp.server.main`) may choose."""
+    import importlib
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    importlib.reload(importlib.import_module("shal.cli"))
+    importlib.reload(importlib.import_module("shal.mcp.server"))
+    assert policy_spy == []
+
+
+def test_legacy_shal_mcp_probe_uses_a_selector_loop_on_win32(setup, policy_spy,
+                                                             monkeypatch, capsys):
+    """`shal-mcp` skips `cli.main`, so that entry point calls the same helper (#94)."""
+    from shal.mcp import server
+    yml, drv = setup
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert server.main([yml, "--drivers", drv, "--probe"]) == 0
+    capsys.readouterr()
+    assert len(policy_spy) == 1 and isinstance(policy_spy[0], _FakeSelectorPolicy)
 
 
 def test_media_player_capability_is_exported():
