@@ -61,10 +61,10 @@ class I2cCliBus(Driver, Transport, ByteTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, int) or not (0x03 <= addr <= 0x77):
-            # non-credential: a 7-bit int I2C address (grammar 0x03-0x77) — not
-            # a URL/endpoint field, so the raw value is kept for debugging (#126)
-            raise LoadError(f"i2c-cli: invalid 7-bit I2C address {addr!r} "
-                            f"(grammar: 0x03-0x77)")
+            # redact_url: child address is ${ENV}-resolved like the bus's own,
+            # so its content isn't constrained by the expected int grammar (#126)
+            raise LoadError(f"i2c-cli: invalid 7-bit I2C address "
+                            f"{redact_url(str(addr))!r} (grammar: 0x03-0x77)")
 
     @classmethod
     def authoring_meta(cls) -> dict:  # shal.catalog() detail (issue #1)

@@ -126,22 +126,45 @@ def test_msg_unknown_address_is_a_hop_error(tmp_path):
             bus.exchange("ghost", {"cmd": "status"})
 
 
-def test_sim_msg_child_address_error_keeps_value_unredacted():
-    # issue #126: documented non-credential — an opaque service/device label,
-    # logged unredacted elsewhere on the success path (exchange's
-    # addr=str(addr)); pins the decision so a future blanket-redaction PR
-    # must reconsider
+class _Opaque:
+    """Stand-in for a value reaching a str/int-only grammar check as some
+    other type — its ``str()`` is what a caller might see leak."""
+
+    def __init__(self, s: str) -> None:
+        self._s = s
+
+    def __str__(self) -> str:
+        return self._s
+
+
+def test_sim_msg_child_address_error_redacts_credentials():
+    # issue #126: the label grammar check only rejects on TYPE, so any
+    # non-str/int value reaching it must still have its stringified content
+    # redacted before it is echoed
+    node = Node("svc", address="sim0")
+    bus = SimMsgBus(node)
+    bad = _Opaque("https://user:secret@evil.example/x?token=abc123")
+    with pytest.raises(shal.LoadError, match="service/device label") as ei:
+        bus.validate_address(bad)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_sim_msg_child_address_error_keeps_plain_value():
+    # a non-credential bad value must still be echoed in full — redaction
+    # must not over-mask ordinary debugging info
     node = Node("svc", address="sim0")
     bus = SimMsgBus(node)
     with pytest.raises(shal.LoadError, match="service/device label") as ei:
-        bus.validate_address(["user@host"])
-    assert "user@host" in str(ei.value)
+        bus.validate_address(["not-a-label"])
+    assert "not-a-label" in str(ei.value)
 
 
-def test_sim_msg_unknown_address_keeps_value_unredacted(tmp_path):
-    # issue #126: documented non-credential — the label is already validated
-    # (non-empty str/int) and the bus is an in-memory sim, never a real
-    # network endpoint; pins the decision unredacted
+def test_sim_msg_unknown_address_redacts_credentials(tmp_path):
+    # issue #126: the runtime addr passed to exchange() can be any resolved
+    # string, credential-shaped or not — a value with no matching model must
+    # not echo a credential verbatim
     p = write(tmp_path, """
         shal_version: 1
         root:
@@ -150,26 +173,56 @@ def test_sim_msg_unknown_address_keeps_value_unredacted(tmp_path):
     with shal.load(p) as hal:
         bus = hal.get_node("svc").driver
         with pytest.raises(shal.HopError, match="no service at") as ei:
-            bus.exchange("user@host", {"cmd": "status"})
-    assert "user@host" in str(ei.value)
+            bus.exchange("https://user:secret@evil.example/x?token=abc123",
+                         {"cmd": "status"})
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
 
 
-def test_sim_scpi_child_address_error_keeps_value_unredacted():
-    # issue #126: documented non-credential — an opaque instrument/channel
-    # label, logged unredacted elsewhere on the success path (exchange's
-    # addr=str(addr)); pins the decision so a future blanket-redaction PR
-    # must reconsider
+def test_sim_msg_unknown_address_keeps_plain_value(tmp_path):
+    # a non-credential bad value (a typo'd device label) must still be
+    # echoed in full — redaction must not over-mask ordinary debugging info
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          svc: {id: svc, driver: "shal,sim-msg", address: sim0}
+    """)
+    with shal.load(p) as hal:
+        bus = hal.get_node("svc").driver
+        with pytest.raises(shal.HopError, match="no service at") as ei:
+            bus.exchange("ghost-device", {"cmd": "status"})
+    assert "ghost-device" in str(ei.value)
+
+
+def test_sim_scpi_child_address_error_redacts_credentials():
+    # issue #126: the label grammar check only rejects on TYPE, so any
+    # non-str/int value reaching it must still have its stringified content
+    # redacted before it is echoed
+    node = Node("bench", address="sim0")
+    bus = SimScpiBus(node)
+    bad = _Opaque("https://user:secret@evil.example/x?token=abc123")
+    with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
+        bus.validate_address(bad)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_sim_scpi_child_address_error_keeps_plain_value():
+    # a non-credential bad value must still be echoed in full — redaction
+    # must not over-mask ordinary debugging info
     node = Node("bench", address="sim0")
     bus = SimScpiBus(node)
     with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
-        bus.validate_address(["user@host"])
-    assert "user@host" in str(ei.value)
+        bus.validate_address(["not-a-label"])
+    assert "not-a-label" in str(ei.value)
 
 
-def test_sim_scpi_unknown_instrument_keeps_value_unredacted(tmp_path):
-    # issue #126: documented non-credential — the label is already validated
-    # (non-empty str/int) and the bus is an in-memory sim, never a real
-    # network endpoint; pins the decision unredacted
+def test_sim_scpi_unknown_instrument_redacts_credentials(tmp_path):
+    # issue #126: the runtime addr passed to exchange() can be any resolved
+    # string, credential-shaped or not — a value with no matching model must
+    # not echo a credential verbatim
     p = write(tmp_path, """
         shal_version: 1
         root:
@@ -178,5 +231,23 @@ def test_sim_scpi_unknown_instrument_keeps_value_unredacted(tmp_path):
     with shal.load(p) as hal:
         bus = hal.get_node("bench").driver
         with pytest.raises(shal.HopError, match="no instrument at") as ei:
-            bus.exchange("user@host", {"scpi": "*IDN?", "query": True})
-    assert "user@host" in str(ei.value)
+            bus.exchange("https://user:secret@evil.example/x?token=abc123",
+                         {"scpi": "*IDN?", "query": True})
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_sim_scpi_unknown_instrument_keeps_plain_value(tmp_path):
+    # a non-credential bad value (a typo'd instrument label) must still be
+    # echoed in full — redaction must not over-mask ordinary debugging info
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          bench: {id: bench, driver: "shal,sim-scpi", address: sim0}
+    """)
+    with shal.load(p) as hal:
+        bus = hal.get_node("bench").driver
+        with pytest.raises(shal.HopError, match="no instrument at") as ei:
+            bus.exchange("ghost-instrument", {"scpi": "*IDN?", "query": True})
+    assert "ghost-instrument" in str(ei.value)
