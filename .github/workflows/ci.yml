@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A quiet repo gets no CI at all: between 2026-07-19 and 2026-08-28 nothing was
+  # pushed, nothing ran, and a stale green badge covered a broken
+  # `pip install "pyshal[mcp]"` for 34 days (#105/#106). Time-based runs decouple
+  # "is the published package still installable" from "did anyone commit".
+  # 06:17 UTC Monday — deliberately off the hour and off midnight; GitHub's
+  # scheduler is most congested at :00 and at 00:00 UTC and delays runs there.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -77,3 +86,43 @@ jobs:
         with:
           name: dist
           path: dist/*
+
+  latest-deps:
+    # Upstream canary (#106). The `test` job installs `.[dev]`, which honours the
+    # declared ceilings (`mcp>=1.0,<2` since #107) — so it can never see the next
+    # major, which is exactly the class of break that hit users in #105. This job
+    # deliberately steps past every ceiling and runs the suite against whatever
+    # PyPI ships today, so an upstream major release fails our build instead of
+    # only failing a fresh `pip install`.
+    #
+    # Not in the required-checks list on purpose: an upstream major breaking is
+    # news, not a broken PR, and nobody in this repo caused it. It is also gated to
+    # scheduled/manual runs so it never paints a red X on an unrelated PR.
+    #
+    # Deliberately NOT `continue-on-error: true`. That would keep the workflow run
+    # green, which means no red run on the Actions tab and no failure email — a
+    # canary nobody looks at is worth nothing, and this issue exists precisely
+    # because a green signal hid a real break. The cost of that choice is honest:
+    # the scheduled run goes red for something no contributor did, and someone has
+    # to triage it. Not being a required check is what keeps that from blocking work.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install shal without resolving its pins
+        # --no-deps so pip never applies pyproject's ceilings to the next step.
+        run: pip install --no-deps -e .
+      - name: Install dependencies unpinned (latest on PyPI today)
+        run: pip install --upgrade pyyaml jsonschema mcp pytest pytest-cov
+      - name: Resolved versions
+        run: pip list
+      - name: Import the MCP server (the #105 break was at import time)
+        run: |
+          python -c "import shal, shal.mcp.server; print('shal', shal.__version__)"
+          shal-mcp --help > /dev/null
+          shal mcp --help > /dev/null
+      - name: Test
+        run: python -m pytest

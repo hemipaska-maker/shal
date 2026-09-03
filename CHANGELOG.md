@@ -14,6 +14,23 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **CI runs on a schedule, and a canary job installs dependencies unpinned** (#106) —
+  `ci.yml` fired only on `push: [main]` and `pull_request`, so 40 days without a commit
+  meant 40 days without a single CI run: the `mcp` 2.x break landed 2026-07-28 and
+  nothing executed to catch it, leaving a stale green badge over a broken
+  `pip install "pyshal[mcp]"` for 34 days (#105). The workflow now also runs weekly
+  (`cron: 17 6 * * 1` — off the hour and off midnight UTC, where GitHub's scheduler is
+  most congested) and on `workflow_dispatch`. A new `latest-deps` job installs the
+  package with `--no-deps` and then `pip install --upgrade`s `pyyaml`, `jsonschema` and
+  `mcp` unpinned, so it deliberately resolves past the declared ceilings (`mcp>=1.0,<2`
+  from #107) that the normal `test` job can never see past; it imports `shal.mcp.server`
+  and runs the suite, so the next upstream major fails our build instead of only failing
+  users. The job is additive and not a required check — an upstream release is news, not
+  a broken PR — and it is gated to scheduled/manual runs, so it never marks an unrelated
+  PR red. It carries no `continue-on-error`: a red canary must actually be red, or nobody
+  looks. Note that GitHub disables scheduled workflows after 60 days of repository
+  inactivity (it emails the owner first), so on a quiet repo the fix for silent decay can
+  itself be switched off — re-enable it from the Actions tab if that mail arrives.
 - **`hard_stops.protected_paths` now fences the files that actually hold the invariants**
   (#118) — four of the six inherited globs matched no tracked file (`**/auth/**`,
   `**/security/**`, `**/migrations/**`, `**/redact*`), so the redaction sanitizer, the
