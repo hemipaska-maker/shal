@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A quiet repo gets no CI at all: between 2026-07-19 and 2026-08-28 nothing was
+  # pushed, nothing ran, and a stale green badge covered a broken
+  # `pip install "pyshal[mcp]"` for 34 days (#105/#106). Time-based runs decouple
+  # "is the published package still installable" from "did anyone commit".
+  # 06:17 UTC Monday — deliberately off the hour and off midnight; GitHub's
+  # scheduler is most congested at :00 and at 00:00 UTC and delays runs there.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -77,3 +86,70 @@ jobs:
         with:
           name: dist
           path: dist/*
+
+  latest-deps:
+    # Upstream canary (#106). The `test` job installs `.[dev]`, which honours the
+    # declared ceilings (`mcp>=1.0,<2` since #107) — so it can never see the next
+    # major, which is exactly the class of break that hit users in #105. This job
+    # deliberately steps past every ceiling and runs the suite against whatever
+    # PyPI ships today, so an upstream major release fails our build instead of
+    # only failing a fresh `pip install`.
+    #
+    # Not in the required-checks list on purpose: an upstream major breaking is
+    # news, not a broken PR, and nobody in this repo caused it. It is also gated to
+    # scheduled/manual runs so it never paints a red X on an unrelated PR.
+    #
+    # Deliberately NOT `continue-on-error: true`. That would keep the workflow run
+    # green, which means no red run on the Actions tab and no failure email — a
+    # canary nobody looks at is worth nothing, and this issue exists precisely
+    # because a green signal hid a real break. The cost of that choice is honest:
+    # the scheduled run goes red for something no contributor did, and someone has
+    # to triage it. Not being a required check is what keeps that from blocking work.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install shal without resolving its pins
+        # --no-deps so pip never applies pyproject's ceilings to the next step.
+        run: pip install --no-deps -e .
+      - name: Install dependencies unpinned (latest on PyPI today)
+        run: pip install --upgrade pyyaml jsonschema mcp pytest pytest-cov
+      - name: Resolved versions
+        run: pip list
+      - name: MCP SDK imports at all (the suite below would skip, not fail)
+        # tests/test_mcp_server.py:5 is `pytest.importorskip("mcp")` — correct for
+        # the normal suite, where `mcp` is an optional extra. Here it is a hole: if
+        # a future major breaks plain `import mcp`, every MCP test SKIPS and the
+        # canary reports green — the exact false-green #106 exists to prevent. So
+        # assert it hard here, before pytest runs. Not fixed by editing the test.
+        run: |
+          python -c "import mcp, mcp.types, mcp.server, mcp.server.stdio; from importlib.metadata import version; print('mcp', version('mcp'))"
+      - name: Construct an MCP server (#105 broke at construction, not at import)
+        # `import shal.mcp.server` does NOT load the SDK — the `mcp` imports live
+        # inside `_build_server()` (src/shal/mcp/server.py:29-31), deliberately, to
+        # keep the core at two dependencies. `--help` exits inside argparse, long
+        # before a server exists. Verified locally: after `import shal.mcp.server`,
+        # `"mcp" in sys.modules` is False. So neither an import nor a `--help` can
+        # see an incompatible SDK; only building a server can. #105 was
+        # `AttributeError: 'Server' object has no attribute 'list_tools'`, raised
+        # while `_build_server` registers its handlers — which is what this runs.
+        run: |
+          python - <<'PY'
+          import shal
+          from shal.mcp import Bridge
+          from shal.mcp.server import _build_server
+          print("shal", shal.__version__)
+          with shal.load("tests/setup_sim.yaml") as hal:
+              bridge = Bridge(hal)
+              _build_server(bridge)   # registers @server.list_tools / @server.call_tool
+              print("built an MCP server over", len(bridge.tool_defs()), "tools")
+          PY
+      - name: CLI entry points still start (argparse only — reaches no MCP code)
+        run: |
+          shal-mcp --help > /dev/null
+          shal mcp --help > /dev/null
+      - name: Test
+        run: python -m pytest
