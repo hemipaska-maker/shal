@@ -19,7 +19,7 @@ from typing import Any
 
 from ..driver import Driver
 from ..errors import HopError, LoadError
-from ..log import bus_logger, current_txn
+from ..log import bus_logger, current_txn, redact_url
 from ..node import Node
 from ..transport import MessageTransport, Transport
 
@@ -88,8 +88,11 @@ class SimScpiBus(Driver, Transport, MessageTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, (str, int)) or str(addr) == "":
+            # redact_url: child address is ${ENV}-resolved, so its content
+            # isn't constrained by the expected label grammar (#126)
             raise LoadError(f"sim-scpi: child address must be a non-empty "
-                            f"instrument/channel label, got {addr!r}")
+                            f"instrument/channel label, got "
+                            f"{redact_url(str(addr))!r}")
 
     def activate(self) -> None:
         self.connect_count += 1
@@ -125,7 +128,10 @@ class SimScpiBus(Driver, Transport, MessageTransport):
                                txn=current_txn.get(), delivered="no")
             model = self._models.get(addr)
             if model is None:
-                raise HopError(f"no instrument at {addr!r}", path=self.host.path,
+                # redact_url: address is ${ENV}-resolved, so its content isn't
+                # constrained by the expected label grammar (#126)
+                raise HopError(f"no instrument at {redact_url(str(addr))!r}",
+                               path=self.host.path,
                                hop="sim-scpi", txn=current_txn.get())
             reply = model.scpi(msg["scpi"])
             self.log.debug("%s %r", "query" if msg.get("query") else "write",

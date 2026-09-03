@@ -14,7 +14,7 @@ from typing import Any
 from .. import registry
 from ..driver import Driver
 from ..errors import LoadError
-from ..log import bus_logger
+from ..log import bus_logger, redact_url
 from ..node import Node
 from ..transport import ByteTransport, Op, Transport, Write
 
@@ -77,7 +77,10 @@ class Pca9548(Driver):
     def provide_child_bus(self, child: Node) -> Transport:
         ch = child.address
         if not isinstance(ch, int) or not (0 <= ch < self.N_CHANNELS):
+            # redact_url: child address is ${ENV}-resolved like any other
+            # address, so its content isn't constrained by the expected int
+            # grammar (#126)
             raise LoadError(f"{child.path}: pca9548 channel must be 0-"
-                            f"{self.N_CHANNELS - 1}, got {ch!r}")
+                            f"{self.N_CHANNELS - 1}, got {redact_url(str(ch))!r}")
         return MuxChannel(child, upstream=self.bus, state=self._state,
                           channel=ch, mux_addr=self.addr)

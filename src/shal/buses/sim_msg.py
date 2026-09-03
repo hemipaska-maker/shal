@@ -18,7 +18,7 @@ from typing import Any
 
 from ..driver import Driver
 from ..errors import HopError, LoadError
-from ..log import bus_logger, current_txn
+from ..log import bus_logger, current_txn, redact_url
 from ..node import Node
 from ..transport import MessageTransport, Transport
 
@@ -52,8 +52,10 @@ class SimMsgBus(Driver, Transport, MessageTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, (str, int)) or str(addr) == "":
+            # redact_url: child address is ${ENV}-resolved, so its content
+            # isn't constrained by the expected label grammar (#126)
             raise LoadError(f"sim-msg: child address must be a non-empty "
-                            f"service/device label, got {addr!r}")
+                            f"service/device label, got {redact_url(str(addr))!r}")
 
     def activate(self) -> None:
         self.connect_count += 1
@@ -89,7 +91,10 @@ class SimMsgBus(Driver, Transport, MessageTransport):
                                txn=current_txn.get(), delivered="no")
             model = self._models.get(addr)
             if model is None:
-                raise HopError(f"no service at {addr!r}", path=self.host.path,
+                # redact_url: address is ${ENV}-resolved, so its content isn't
+                # constrained by the expected label grammar (#126)
+                raise HopError(f"no service at {redact_url(str(addr))!r}",
+                               path=self.host.path,
                                hop="sim-msg", txn=current_txn.get())
             reply = model.handle(msg)
             self.log.debug("exchange", event="exchange", addr=str(addr))

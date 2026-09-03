@@ -15,6 +15,8 @@ import pytest
 import shal
 from shal.buses import http_bus
 from shal.buses.i2c_cli import I2cCliBus, parse_output, render_ops
+from shal.buses.scpi_raw import ScpiRawBus
+from shal.buses.sim import SimI2cBus
 from shal.buses.ssh import ssh_argv
 from shal.log import redact_url
 from shal.node import Node
@@ -180,6 +182,184 @@ def test_i2c_cli_bad_device_path(tmp_path):
     """)
     with pytest.raises(shal.LoadError, match="/dev/i2c"):
         shal.load(p)
+
+
+def test_i2c_cli_bad_device_path_redacts_credentials(tmp_path):
+    # issue #126: i2c-cli's own bus address is ${ENV}-resolved just like
+    # tcp/scpi-raw's host:port — a misplaced creds URL must not echo verbatim
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          here:
+            driver: shal,local
+            address: localhost
+            children:
+              i2c0:
+                driver: "shal,i2c-cli"
+                address: "https://user:secret@device.local/x?token=abc"
+    """)
+    with pytest.raises(shal.LoadError, match="/dev/i2c") as ei:
+        shal.load(p)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc" not in msg
+    assert "device.local" in msg
+
+
+def test_i2c_cli_child_address_error_redacts_credentials():
+    # issue #126: the child address is ${ENV}-resolved just like the bus's
+    # own — loader.py resolves every node's address the same way, so a
+    # misplaced creds URL landing here must not echo verbatim
+    root = Node("here")
+    child = Node("i2c0", address="/dev/i2c-1", parent=root)
+    bus = I2cCliBus(child)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("https://user:secret@evil.example/x?token=abc123")
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_i2c_cli_child_address_error_keeps_plain_value():
+    # a non-credential bad value (a topology typo) must still be echoed in
+    # full — redaction must not over-mask ordinary debugging info
+    root = Node("here")
+    child = Node("i2c0", address="/dev/i2c-1", parent=root)
+    bus = I2cCliBus(child)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("ch9")
+    assert "ch9" in str(ei.value)
+
+
+def test_spi_cli_bad_device_path_redacts_credentials(tmp_path):
+    # issue #126: spi-cli's own bus address is ${ENV}-resolved just like
+    # tcp/scpi-raw's host:port — a misplaced creds URL must not echo verbatim
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          here:
+            driver: shal,local
+            address: localhost
+            children:
+              spi0:
+                driver: "shal,spi-cli"
+                address: "https://user:secret@device.local/x?token=abc"
+    """)
+    with pytest.raises(shal.LoadError, match="spidev") as ei:
+        shal.load(p)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc" not in msg
+    assert "device.local" in msg
+
+
+def test_mux_bad_channel_redacts_credentials(tmp_path):
+    # issue #126: a mux channel address is ${ENV}-resolved like any other —
+    # a misplaced creds URL must not echo verbatim
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          bench:
+            driver: shal,sim-i2c
+            address: sim0
+            children:
+              mux0:
+                driver: nxp,pca9548
+                address: 0x70
+                children:
+                  ch0:
+                    address: "https://user:secret@evil.example/x?token=abc123"
+                    children:
+                      d: {driver: "ti,tmp102", address: 0x48}
+    """)
+    with pytest.raises(shal.LoadError, match="pca9548 channel") as ei:
+        shal.load(p)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_mux_bad_channel_keeps_plain_value(tmp_path):
+    # a non-credential bad value (a topology typo) must still be echoed in
+    # full — redaction must not over-mask ordinary debugging info
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          bench:
+            driver: shal,sim-i2c
+            address: sim0
+            children:
+              mux0:
+                driver: nxp,pca9548
+                address: 0x70
+                children:
+                  ch0:
+                    address: "ch9"
+                    children:
+                      d: {driver: "ti,tmp102", address: 0x48}
+    """)
+    with pytest.raises(shal.LoadError, match="pca9548 channel") as ei:
+        shal.load(p)
+    assert "ch9" in str(ei.value)
+
+
+def test_sim_i2c_child_address_error_redacts_credentials():
+    # issue #126: the child address is ${ENV}-resolved (the sim-i2c twin of
+    # i2c-cli's own check) — a misplaced creds URL must not echo verbatim
+    node = Node("bench", address="sim0")
+    bus = SimI2cBus(node)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("https://user:secret@evil.example/x?token=abc123")
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_sim_i2c_child_address_error_keeps_plain_value():
+    # a non-credential bad value (a topology typo) must still be echoed in
+    # full — redaction must not over-mask ordinary debugging info
+    node = Node("bench", address="sim0")
+    bus = SimI2cBus(node)
+    with pytest.raises(shal.LoadError, match="0x03-0x77") as ei:
+        bus.validate_address("ch9")
+    assert "ch9" in str(ei.value)
+
+
+class _Opaque:
+    """Stand-in for a resolved address reaching a str/int-only grammar check
+    as some other type — its ``str()`` is what a caller might see leak."""
+
+    def __init__(self, s: str) -> None:
+        self._s = s
+
+    def __str__(self) -> str:
+        return self._s
+
+
+def test_scpi_raw_child_address_error_redacts_credentials():
+    # issue #126: the label grammar check only rejects on TYPE, so any
+    # non-str/int value reaching it (however it got there) must still have
+    # its stringified content redacted before it is echoed
+    node = Node("scpi0", address="10.0.0.5:5025")
+    node.spec = {"insecure": True}
+    bus = ScpiRawBus(node)
+    with pytest.raises(shal.LoadError, match="instrument/channel label"):
+        bus.validate_address("")
+    bad = _Opaque("https://user:secret@evil.example/x?token=abc123")
+    with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
+        bus.validate_address(bad)
+    msg = str(ei.value)
+    assert "secret" not in msg and "token=abc123" not in msg
+    assert "evil.example" in msg
+
+
+def test_scpi_raw_child_address_error_keeps_plain_value():
+    # a non-credential bad value must still be echoed in full — redaction
+    # must not over-mask ordinary debugging info
+    node = Node("scpi0", address="10.0.0.5:5025")
+    node.spec = {"insecure": True}
+    bus = ScpiRawBus(node)
+    with pytest.raises(shal.LoadError, match="instrument/channel label") as ei:
+        bus.validate_address(["not-a-label"])
+    assert "not-a-label" in str(ei.value)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="executable shim needs POSIX")

@@ -11,7 +11,7 @@ from typing import Any
 
 from ..driver import Driver
 from ..errors import HopError, LoadError
-from ..log import bus_logger, current_txn, redact
+from ..log import bus_logger, current_txn, redact, redact_url
 from ..node import Node
 from ..transport import ByteTransport, Op, Read, Transport, Write
 
@@ -182,8 +182,10 @@ class SimI2cBus(Driver, Transport, ByteTransport):
 
     def validate_address(self, addr: Any) -> None:
         if not isinstance(addr, int) or not (0x03 <= addr <= 0x77):
-            raise LoadError(f"sim-i2c: invalid 7-bit I2C address {addr!r} "
-                            f"(grammar: 0x03-0x77)")
+            # redact_url: child address is ${ENV}-resolved, so its content
+            # isn't constrained by the expected int grammar (#126)
+            raise LoadError(f"sim-i2c: invalid 7-bit I2C address "
+                            f"{redact_url(str(addr))!r} (grammar: 0x03-0x77)")
 
     def activate(self) -> None:
         self.connect_count += 1
