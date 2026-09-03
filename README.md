@@ -210,6 +210,65 @@ Python doesn't change.**
 
 ---
 
+## Reuse a board — `use:` and `with:`
+
+A bench description isn't text you paste into the next project. It's a file the
+next project points at.
+
+Describe the board once, with `${param}` placeholders for whatever differs:
+
+```yaml
+# board.yaml
+shal_version: 1
+template:                       # a `use:` target must define `template:`
+  driver: shal,sim-i2c
+  address: sim0
+  children:
+    temp:
+      id: ${prefix}_temp
+      driver: ti,tmp102
+      address: 0x48
+```
+
+Then reference it as many times as you need:
+
+```yaml
+# rig.yaml
+shal_version: 1
+root:
+  bench_a: { use: board.yaml, with: { prefix: a } }
+  bench_b: { use: board.yaml, with: { prefix: b } }
+```
+
+```python
+import shal
+
+with shal.load("rig.yaml") as hal:
+    print(hal.get_device("a_temp").read_celsius())   # 25.0
+    print(hal.get_device("b_temp").read_celsius())   # 25.0
+```
+
+Both benches come up as separate devices, and each op becomes its own agent tool
+(`a_temp__read_celsius`, `b_temp__read_celsius`).
+
+**The second bench is a reference, not a copy** — fix `board.yaml` and every rig
+that uses it is fixed.
+
+Details worth knowing:
+
+- **`${param}` substitutes into every string in the template, including `id`.**
+  That is how you avoid the global duplicate-id error when the same board appears
+  twice: give each instance its own prefix.
+- **The using node's own keys override the template's**, so a rig can change one
+  address without editing the board file.
+- **Includes chain** — a template may itself be a `use:` node. Cycles are
+  detected and refused.
+- **Paths are confined to the topology root.** A `use:` that escapes it via `../`
+  is an error, not a warning.
+- Values not supplied by `with:` fall back to `${ENV_VAR}` resolution.
+
+---
+
 ## Drive it from an agent (MCP)
 
 Expose a whole topology to an MCP host (Claude Code/Desktop, …) as gated tools —
