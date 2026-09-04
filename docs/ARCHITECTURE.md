@@ -195,6 +195,7 @@ sequenceDiagram
 | D18 | **The error taxonomy is a contract:** `Error` → `LoadError` (anything wrong *before* runtime) and `HopError` (a runtime hop, carrying `path` / `hop` / `txn` / `delivered: "no" \| "unknown"`) → `HopTimeout`; `Busy` for a pinned mux channel; `Gap` is an **event, not an exception**. `delivered` is what makes D12's raise-don't-default rule and the never-auto-retry-an-unknown-write rule decidable | `DECISIONS - V2.1.md` §3 |
 | D19 | **One entry-point group — `shal.drivers`** — for drivers and buses alike; bus-ness comes from the transport **kinds** a class exposes, not from a second group. At bind time the framework wraps every public capability method: it assigns a `txn` id always, and adds reconnect-once/retry-once **only** to `@idempotent` ops | `DECISIONS - V2.1.md` §4 |
 | D20 | **A parent driver may expose a distinct bus per child:** `Driver.provide_child_bus(child)` → `Node.exposed_bus` is the single core hook a mux needs, which is why per-mux selection state lives on that shared object and never on the parent bus | `DECISIONS - V2.1.md` §Phase 1.1 |
+| D21 | **Topologies compose by inclusion, not override:** `include:` merges sibling roots, duplicates are errors, includes stay inside the tree, and the main file's `.env` is the only one | #134 / CTO ruling |
 
 ### Open decisions
 *Named, not yet decided. An issue that needs one of these is **not** ready for `agent:go`.

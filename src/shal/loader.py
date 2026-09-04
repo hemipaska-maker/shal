@@ -105,8 +105,17 @@ def _apply_dotenv(base_dir: Path) -> None:
 def load_tree(source: str | os.PathLike | Mapping) -> tuple[list[Node], dict[str, Node]]:
     """Load a topology from a YAML file path, or from an in-memory mapping (the
     shape produced by curated/zero-config entry and a future setup flow). A dict
-    is taken as the already-parsed document; includes (`use:`) in a dict topology
-    resolve from the current working directory."""
+    is taken as the already-parsed document; includes (`use:`, `include:`) in a
+    dict topology resolve from the current working directory.
+
+    `include:` (top-level list of relative paths) composes a setup from many
+    files: each included file is a full topology with its own `root:`, and
+    those `root:` maps merge as SIBLINGS into the main file's `root:` — nothing
+    nests (shal#134). There is no override: a duplicate top-level name across
+    any two files is a `LoadError` naming both files, so include order never
+    matters. Only the main file's `.env` is read (`_apply_dotenv` runs once,
+    above, before any include is even parsed) — an included file's sibling
+    `.env` is never consulted, so one setup has exactly one source of secrets."""
     if isinstance(source, Mapping):
         doc: Any = source
         src_label = "<dict>"
@@ -126,8 +135,9 @@ def load_tree(source: str | os.PathLike | Mapping) -> tuple[list[Node], dict[str
     refs: list[tuple[Node, str]] = []
     ctx = _IncludeCtx(top_root=base_dir, base_dir=base_dir, seen=seen)
 
-    for name, spec in doc["root"].items():
-        roots.append(_build(name, spec, parent=None, ids=ids, refs=refs, ctx=ctx))
+    merged = _merge_includes(doc, src_label, ctx)
+    for name, (spec, node_ctx, _origin) in merged.items():
+        roots.append(_build(name, spec, parent=None, ids=ids, refs=refs, ctx=node_ctx))
 
     # $ref: loader links instead of recursing, so load terminates
     for node, ref in refs:
@@ -164,8 +174,9 @@ def _validate_schema(doc: Any, *, source: str) -> None:
 
 class _IncludeCtx:
     """Carries the include search context down the recursion: where relative
-    `use:` paths resolve from, the top-level dir they may not escape, and the
-    chain of files already open (cycle guard). Immutable; `descend` forks it."""
+    `use:`/`include:` paths resolve from, the top-level dir they may not
+    escape, and the chain of files already open (cycle guard). Immutable;
+    `descend` forks it."""
 
     __slots__ = ("top_root", "base_dir", "seen")
 
@@ -176,6 +187,60 @@ class _IncludeCtx:
 
     def descend(self, into: Path) -> _IncludeCtx:
         return _IncludeCtx(self.top_root, into.parent, (*self.seen, into))
+
+
+def _confine(target: Path, top_root: Path, *, what: str) -> None:
+    """Shared by `use:` and `include:`: neither may escape the main topology's
+    directory tree — same rule, same reason (a path that climbs out reads
+    arbitrary files). Reusing a board from another project means copying it
+    in, not path-climbing to it."""
+    try:
+        target.relative_to(top_root)
+    except ValueError as e:
+        raise LoadError(f"{what} escapes the topology root {top_root} "
+                        f"(includes must stay within the project tree)") from e
+
+
+def _merge_includes(
+    doc: Mapping, file_label: str, ctx: _IncludeCtx,
+) -> dict[str, tuple[Any, _IncludeCtx, str]]:
+    """Resolve `include:` into one merged `root:` mapping: sibling files' `root:`
+    maps merge as siblings into this file's `root:` — nothing nests (shal#134).
+    Each value carries the `_IncludeCtx` a *that* entry's node tree must build
+    with (so a relative `use:` inside an included file resolves against the
+    included file's own directory, not the main file's) and the file that
+    defined it (for the duplicate-name error, which must name both files).
+
+    No override: a name already merged from another file is a `LoadError`
+    naming both files — so include order never matters. Confinement and the
+    cycle guard reuse the same `_IncludeCtx` machinery `use:` uses (`.seen`,
+    `top_root`, `.descend`); schema validation runs on every included file,
+    before it is merged, so a violation names that file."""
+    merged: dict[str, tuple[Any, _IncludeCtx, str]] = {}
+    for name, spec in (doc.get("root") or {}).items():
+        merged[name] = (spec, ctx, file_label)
+
+    for rel in doc.get("include") or []:
+        target = (ctx.base_dir / rel).resolve()
+        _confine(target, ctx.top_root, what=f"include '{rel}' (from {file_label}):")
+        if target in ctx.seen:  # cycle guard, same set `use:` extends
+            chain = " -> ".join(p.name for p in (*ctx.seen, target))
+            raise LoadError(f"circular include: {chain}")
+        if not target.is_file():
+            raise LoadError(f"include '{rel}' (from {file_label}): file not found: {target}")
+
+        sub_doc = yaml.safe_load(target.read_text(encoding="utf-8"))  # safe_load only
+        _validate_schema(sub_doc, source=str(target))  # per file, before merge
+        sub_ctx = ctx.descend(target)
+        sub_merged = _merge_includes(sub_doc, str(target), sub_ctx)
+
+        for name, entry in sub_merged.items():
+            if name in merged:
+                raise LoadError(
+                    f"duplicate top-level name '{name}': defined in both "
+                    f"{merged[name][2]} and {entry[2]}")
+            merged[name] = entry
+    return merged
 
 
 def _build(name: str, spec: Mapping, *, parent: Node | None,
@@ -218,11 +283,7 @@ def _expand_use(name: str, spec: Mapping, ctx: _IncludeCtx) -> tuple[dict, _Incl
     rel = spec["use"]
     target = (ctx.base_dir / rel).resolve()
     # confinement: no absolute escapes, no climbing above the top-level file's dir
-    try:
-        target.relative_to(ctx.top_root)
-    except ValueError as e:
-        raise LoadError(f"node '{name}': use '{rel}' escapes the topology root "
-                        f"{ctx.top_root} (includes must stay within the project tree)") from e
+    _confine(target, ctx.top_root, what=f"node '{name}': use '{rel}'")
     if target in ctx.seen:  # cycle guard, every include chain
         chain = " -> ".join(p.name for p in (*ctx.seen, target))
         raise LoadError(f"node '{name}': circular use include: {chain}")

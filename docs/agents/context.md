@@ -64,7 +64,12 @@ if it runs.
 > if a change fights the doc, change the doc on purpose.
 
 - `src/shal/loader.py` — YAML topology loader (safe_load, schema validation, env
-  resolution, `use:` includes, `$ref` links)
+  resolution, `use:` templates, `include:` composition, `$ref` links). `use:`
+  splices one external template **into a node** (parametrised with `with:`);
+  `include:` (a top-level list of relative paths) merges other files' `root:`
+  maps as **siblings** into this file's `root:` — nothing nests, no override
+  (a duplicate top-level name across files is a `LoadError` naming both), and
+  only the main file's `.env` is read (D21, shal#134)
 - `src/shal/transport.py` — `Transport` base + typed kind mixins (`ByteTransport`,
   `CommandTransport`, `MessageTransport`, `Stream`)
 - `src/shal/registry.py` — driver registry keyed by `compatible`, collision policy

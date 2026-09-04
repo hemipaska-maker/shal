@@ -14,6 +14,21 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **`include:` composes a topology from many YAML files — add a device, add a
+  file** (#134, D21) — a top-level `include:` list names other topology files
+  (each a full `root:` of its own); their `root:` maps merge as **siblings**
+  into the main file's `root:` — nothing nests. There is no override: a
+  duplicate top-level name across any two files is a `LoadError` naming both
+  files, so include order never matters (duplicate global `id:` was already a
+  `LoadError` and still is). An include may not escape the main file's
+  directory tree — the same confinement rule and cycle guard `use:` already
+  had, now shared via `_confine`/`_IncludeCtx`. Only the main file's `.env` is
+  read; an included file's own sibling `.env` is never consulted. `include:`
+  does not take `with:` — a parametrised board still goes under a named node
+  with `use:`. Include chains are allowed (a included file may itself
+  include). Schema: `root`/`template`/`include` are each independently
+  sufficient at the top level, so a main file may be include-only. See
+  `tests/test_includes.py`.
 - **A `packaging` CI job checks the built wheel's own metadata, not the source
   that declares it** (#123) — `test`/`examples` install `.[dev]` from a repo
   checkout, so the wheel's `Requires-Dist` was never once exercised; that gap

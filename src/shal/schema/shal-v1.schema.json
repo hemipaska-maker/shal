@@ -8,7 +8,8 @@
   "additionalProperties": false,
   "anyOf": [
     { "required": ["root"] },
-    { "required": ["template"] }
+    { "required": ["template"] },
+    { "required": ["include"] }
   ],
   "properties": {
     "shal_version": { "const": 1 },
@@ -18,7 +19,13 @@
       "propertyNames": { "$ref": "#/$defs/nodeName" },
       "additionalProperties": { "$ref": "#/$defs/node" }
     },
-    "template": { "$ref": "#/$defs/node" }
+    "template": { "$ref": "#/$defs/node" },
+    "include": {
+      "type": "array",
+      "description": "Relative paths to other topology files. Each is a full topology with its own `root:`; their `root:` maps merge as siblings into this file's `root:` (nothing nests). A main file may be include-only (no `root:` of its own).",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
   },
   "$defs": {
     "nodeName": {
