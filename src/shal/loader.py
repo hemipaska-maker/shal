@@ -274,6 +274,17 @@ def _merge_includes(
 
         sub_doc = yaml.safe_load(target.read_text(encoding="utf-8"))  # safe_load only
         _validate_schema(sub_doc, source=str(target))  # per file, before merge
+        # An included file must contribute something: either its own `root:`
+        # or a further `include:` chain (legal, shal#136/D21 point 6). A file
+        # with neither — e.g. a `use:` template (`template:`, no `root:`) —
+        # passes schema (anyOf root/template/include) but reaches nothing when
+        # include:d, so the load would otherwise "succeed" while silently
+        # loading nothing (shal#137, D21).
+        if not (sub_doc.get("root") or sub_doc.get("include")):
+            raise LoadError(
+                f"include '{rel}' (from {file_label}): {target} is a use: "
+                f"template — a use: template cannot be include:d "
+                f"(reference it from a node)")
         sub_ctx = ctx.descend(target)
         sub_merged = _merge_includes(sub_doc, str(target), sub_ctx)
 

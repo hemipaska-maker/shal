@@ -53,6 +53,15 @@ All notable changes to this project are documented here. The format follows
   that — it's a static metadata check and needs no venv of its own.
 
 ### Fixed
+- **Including a `use:` template file now fails loudly instead of loading
+  nothing** (#137, D21) — an included file with `template:` and no `root:`
+  (a board meant for `use:`, not a topology) used to pass schema and merge
+  zero nodes, so the load reported success while silently reaching nothing —
+  exactly the class of bug D21 exists to stop. `_merge_includes` in
+  `src/shal/loader.py` now rejects an included file that has neither `root:`
+  nor `include:` with `a use: template cannot be include:d — reference it
+  from a node`, naming the file. An included file that only chains further
+  `include:`s is still legal (#136).
 - **A node missing `address`/`routes`/`to` now names the node and the rule**
   (#95) — a cloud device's natural first draft (`id`/`driver`/`config:`, no
   `address`) used to fail with jsonschema's raw *"is not valid under any of
