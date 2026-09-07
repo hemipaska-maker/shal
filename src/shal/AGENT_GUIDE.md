@@ -133,6 +133,17 @@ root:
 `shal.load()` also accepts this as an in-memory dict. Secrets go via `${ENV_VAR}` in a
 `config:` block — never literal in the file, never in logs.
 
+A cloud device (no IP to give) still needs an `address` — every node needs exactly one
+of `address` | `routes` | `to`, even if `config:` holds the real connection details:
+```yaml
+shal_version: 1
+root:
+  vacuum: {id: vac, driver: 'community,my-thing', address: vac-serial-123,
+           config: {account: '${CLOUD_ACCOUNT}'}}
+```
+Use a stable identifier — a serial number, account id, or the literal `"cloud"` — as
+the address; `config:` alone does not satisfy the rule.
+
 ---
 
 ## Run it (no MCP host needed)

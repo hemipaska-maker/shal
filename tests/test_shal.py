@@ -120,6 +120,61 @@ def test_missing_env_var_names_the_name(tmp_path, monkeypatch):
         shal.load(p)
 
 
+def test_config_only_node_names_the_rule(tmp_path):
+    # #95: a node with `config:` but no address/routes/to (the natural first
+    # draft for a cloud device) used to fail with jsonschema's generic
+    # "not valid under any of the given schemas" — naming neither the node nor
+    # the rule. It must now name both.
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          vacuum:
+            id: vac
+            driver: "ecovacs,deebot"
+            config: {account: someone@example.com}
+    """)
+    with pytest.raises(shal.LoadError,
+                        match=r"root/vacuum.*needs exactly one of address \| routes \| to"):
+        shal.load(p)
+
+
+def test_node_with_address_and_other_error_keeps_generic_message(tmp_path):
+    # A node that HAS an address but fails for an unrelated reason must not be
+    # told it "needs exactly one of address | routes | to" — that would send
+    # the author looking for the wrong problem.
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          vacuum:
+            id: vac
+            driver: "ecovacs,deebot"
+            address: "1.2.3.4"
+            bogus_key: oops
+    """)
+    with pytest.raises(shal.LoadError, match="schema violation") as excinfo:
+        shal.load(p)
+    assert "needs exactly one of" not in str(excinfo.value)
+
+
+def test_address_and_routes_together_keeps_generic_message(tmp_path):
+    # A node with BOTH address and routes trips the same oneOf as a node with
+    # neither — but it's a different mistake and must not get the same
+    # friendly rewrite.
+    p = write(tmp_path, """
+        shal_version: 1
+        root:
+          vacuum:
+            id: vac
+            driver: "ecovacs,deebot"
+            address: "1.2.3.4"
+            routes:
+              - {via: /x, address: 1}
+    """)
+    with pytest.raises(shal.LoadError, match="schema violation") as excinfo:
+        shal.load(p)
+    assert "needs exactly one of" not in str(excinfo.value)
+
+
 def test_routes_fail_honestly(tmp_path):
     p = write(tmp_path, """
         shal_version: 1
