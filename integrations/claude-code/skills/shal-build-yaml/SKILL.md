@@ -144,6 +144,38 @@ relative to the including file and may not escape the top-level file's directory
 Include the same board twice → namespace its ids via a `with:` param, or you'll
 hit the duplicate-id error.
 
+## Composing a setup from many files: `include:`
+
+`use:` grafts one template **into a node**. `include:` is different: a
+top-level list of relative paths, each a full topology with its own `root:`.
+Those `root:` maps merge as **siblings** into this file's `root:` — nothing
+nests, and there is no override:
+
+```yaml
+# device_a.yaml
+shal_version: 1
+root:
+  device_a: { driver: shal,sim-i2c, address: sim0, children: { ... } }
+```
+
+```yaml
+# setup.yaml
+shal_version: 1
+include:
+  - device_a.yaml
+  - device_b.yaml
+```
+
+Add a device by adding a file and one line to `include:` — no editing an
+existing file's `root:`. Rules: a top-level name defined in two files (main or
+included) is a `LoadError` naming both files, so include order never matters;
+paths are relative to the including file and may not escape the top-level
+file's directory (same rule as `use:`); include chains are allowed, and a
+cycle fails loudly naming the chain; only the **main** file's `.env` is read —
+an included file's own sibling `.env` is never consulted; `include:` does not
+take `with:` (a parametrised board goes under a named node with `use:`
+instead). A main file may consist of nothing but `include:` entries.
+
 ## Disambiguating drivers: `from:`
 
 If two installed packages both provide the same `compatible`, the load fails
