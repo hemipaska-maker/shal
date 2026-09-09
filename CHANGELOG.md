@@ -14,6 +14,43 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Which side effects require approval is now a host policy, not a constant**
+  (#114, RFC-001 Q2) — `shal.set_gated_effects(...)` /
+  `shal.gated_effects(...)` (a `with` scope) / `shal.get_gated_effects()`
+  mirror `set_approver`/`approver`/`get_approver` exactly: SHAL ships the
+  mechanism plus a safe default and the host seats the policy. **The default is
+  unchanged** — `{"actuator", "config"}` — so a consumer that never calls the
+  new API behaves byte-identically; the pre-existing `tests/test_approval.py`
+  cases are the proof and were not edited. A rig that wants every register
+  write to stop for a human now says
+  `shal.set_gated_effects({"write", "actuator", "config"})` instead of
+  monkey-patching `driver._GATED_EFFECTS`.
+  - **`"none"` is rejected outright.** Gating a read has no meaning, and
+    advertising one would be self-contradictory: the same op would carry
+    `readOnlyHint: true` and `destructiveHint: true`. An unknown effect name is
+    also a `ValueError` **at the call site** — where the host wrote it, not
+    silently at the next op. An empty set is legal (gate nothing) because,
+    unlike `"none"`, it is a coherent statement.
+  - **Advertised == enforced still holds.** `_GATED_EFFECTS` had two readers
+    the gate's own docstring did not name: `hal._annotations` and
+    `registry._op_entries`, which compute the MCP `destructiveHint`. Both now
+    read the live policy, so a host that seats `{"write", ...}` sees its
+    `write` ops advertised destructive as well as gated — previously the tool
+    surface would have told an agent a call was free while the gate stopped it
+    for a human. `test_advertised_gated_set_equals_enforced` is parametrised
+    over a seated policy for the same reason: under the default alone the two
+    readers cannot disagree, so it could not have caught this.
+  - The gated-set membership test moved from bind time to **call time** (the
+    `not isinstance(self, Transport)` exclusion is a fixed property of the
+    driver and stays at bind). This is required, not cosmetic: the advertised
+    hints are computed when `tool_catalog()`/`catalog()` is called, so a
+    bind-time gated set would diverge from them under a policy seated after
+    `shal.load()`.
+  - Same `ContextVar` caveat as `set_approver`, and the two are documented as a
+    **pair** in `shal.approval`'s module docstring: a newly spawned OS thread
+    inherits neither and falls back to the safe defaults, and a host that seats
+    a strict Approver but forgets the gated set still lets every `"write"` op
+    through untouched — the Approver is simply never asked.
 - **`include:` composes a topology from many YAML files — add a device, add a
   file** (#134, D21) — a top-level `include:` list names other topology files
   (each a full `root:` of its own); their `root:` maps merge as **siblings**

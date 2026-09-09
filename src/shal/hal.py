@@ -5,7 +5,7 @@ import logging
 import re
 
 from . import limits
-from .driver import _GATED_EFFECTS, inferred_side_effect
+from .driver import get_gated_effects, inferred_side_effect
 from .errors import ApprovalDenied, Error, HopError, LimitError, LoadError
 from .loader import load_tree
 from .node import Node
@@ -213,8 +213,11 @@ def _annotations(eff: dict) -> dict:
     side = eff["side_effect"]
     return {"readOnlyHint": side == "none",
             "idempotentHint": eff["idempotent"],
-            # destructive == gated by the approval interlock (actuator OR config)
-            "destructiveHint": side in _GATED_EFFECTS}
+            # destructive == gated by the approval interlock. Read the LIVE policy
+            # (issue #114), never the shipped default: a host that seats a wider
+            # gated set must not be advertised a narrower one, or the tool surface
+            # tells an agent a call is free while the gate stops it for a human.
+            "destructiveHint": side in get_gated_effects()}
 
 
 def _describe(node: Node, opname: str, fn) -> str:
