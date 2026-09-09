@@ -203,6 +203,26 @@ def test_main_file_may_be_include_only(tmp_path):
         assert hal.get_device("device_a_temp") is not None
 
 
+def test_including_a_template_file_is_an_error(tmp_path):
+    # board.yaml is a `use:` template (template:, no root:) — including it
+    # would otherwise "load" successfully while contributing nothing (#137).
+    write(tmp_path / "board.yaml", """
+        shal_version: 1
+        template:
+          driver: "shal,sim-i2c"
+          address: "sim0"
+          children:
+            t: { id: t0, driver: "ti,tmp102", address: 0x48 }
+    """)
+    main = write(tmp_path / "main.yaml", """
+        shal_version: 1
+        include:
+          - board.yaml
+    """)
+    with pytest.raises(shal.LoadError, match="cannot be include"):
+        shal.load(main)
+
+
 def test_dotenv_beside_included_file_is_not_read(tmp_path, monkeypatch):
     monkeypatch.delenv("SHAL_TEST_INCLUDE_SECRET", raising=False)
     sub = tmp_path / "sub"
