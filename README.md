@@ -9,14 +9,20 @@ reviewed: 2026-06-23
 
 # SHAL
 
-### Give an AI agent real hardware — gated, so it asks before it moves.
+### A test sequencer an agent can drive — safely.
 
-Describe your whole lab — sensors, instruments, robots, services — in **one YAML
-file**, and hand it to an LLM as **typed, permission-gated tools**: writes stop
-for approval before they reach the device; reads don't. No transport code, no glue.
+**One file describes everything your test touches** — the board on the bench, the
+database behind it, the service it calls — with the risk of each operation written
+down. Run it from Python or pytest at the bench. Hand it to an AI agent as typed,
+gated tools: reads run free; **anything that moves or reconfigures stops for a person.**
+
+> Behind the door: SHAL is the capability layer for AI agents operating engineering
+> and production systems — hardware and software through one governed interface.
+> Testing is the first use. The moat is one word: *physical*.
 
 > In a blind test, an agent wrote working, safety-checked drivers for **4 of 4**
 > devices from documentation alone — then drove a **real robot, gated**.
+> *Founder-run, not yet independently replicated.*
 
 <!-- BADGES -->
 [![GitHub stars](https://img.shields.io/github/stars/determlab/shal?style=social)](https://github.com/determlab/shal)
@@ -37,8 +43,8 @@ for approval before they reach the device; reads don't. No transport code, no gl
 
 **Built for:**
 
-✓ AI agent builders &nbsp;·&nbsp; ✓ Validation & test engineers &nbsp;·&nbsp;
-✓ Hardware-in-the-loop automation &nbsp;·&nbsp; ✓ Labs with mixed hardware + software
+✓ Validation & test engineers who already write Python &nbsp;·&nbsp; ✓ Production test stations &nbsp;·&nbsp;
+✓ Labs with mixed hardware + software &nbsp;·&nbsp; ✓ AI agent builders who need a gate before the wire
 
 ---
 
