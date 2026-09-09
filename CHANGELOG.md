@@ -183,6 +183,16 @@ All notable changes to this project are documented here. The format follows
   userinfo credentials in the error text; the `http`, `tcp`, and `scpi-raw` buses now
   route the echoed address through `redact_url`. Clean addresses still echo verbatim.
 
+### Documentation
+- **Name the ADK** (#140, `adk.md` R1) — a new "## The ADK" section in
+  `AGENT_GUIDE.md` names the five pieces an agent already uses to build a
+  compliant driver: the rules in this guide, `@op` in `driver.py`, the typed
+  protocols in `capabilities.py`, `conformance.check_driver`, and the sim-twin
+  buses (`buses/sim.py`, `sim_msg.py`, `sim_scpi.py`). No code changed. Whether
+  the ADK lets a cold agent pass on the first try is a separate, scripted test
+  in `determlab/adk-lab`; this entry does not claim that result — only a real
+  `RESULTS.jsonl` there can.
+
 ## [0.2.2] - 2026-08-31
 
 Restores `shal mcp` on a clean install, and makes the D12 read-freshness contract
