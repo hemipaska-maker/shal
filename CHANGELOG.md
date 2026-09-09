@@ -14,6 +14,39 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **`shal.record` — one test-result shape for the bench and the floor** (#141,
+  D22, `record.md`) — a new module `src/shal/record.py` holding the record shape
+  **once**, so `pytest-shal`, Bricks and AOS stop writing three different things.
+  One `Record` per run of one sequence against one unit: `record_version` first
+  (§7 — a reader always knows what it holds), then the id, `unit` (`bench` for a
+  bench run, never blank), `station`, `sequence`/`sequence_version`, optional
+  `firmware`, `setup`/`setup_version`, `runner`, `started`/`ended`, the derived
+  `verdict`, `steps[]` (each with its own verdict and its `measurements[]`, every
+  measurement carrying the **limits that were enforced**, copied in — a record
+  must be readable in a year without the topology), the AOS `calls` list
+  unchanged, and an optional `abort` block for when Predictor or a person stopped
+  the run early. `verdict` is a read-only property derived from the steps and
+  `abort` (`aborted` > `error` > `fail` > `pass`), so it cannot be constructed
+  wrong, and a stored record whose `verdict` disagrees with its own steps is a
+  `RecordError` rather than a silent correction. `write(record, store)` writes
+  **both** stores under one directory — `records.db` (SQLite, one file per
+  station, the record as a JSON column plus indexed `unit`/`station`/`sequence`/
+  `verdict`/`started` columns) and `records/<id>.yaml` beside it — and `read(store,
+  unit=…, station=…, sequence=…, verdict=…)` returns what the **YAML** says: the
+  audit copy wins on disagreement, so a stale db row changes neither the data nor
+  which records a filter matches. `started`/`ended` are ISO-8601 UTC *strings*,
+  not `datetime`, because an unquoted YAML timestamp parses back as a `datetime`
+  while JSON has no such type — a `datetime` field could not come back identical
+  from both stores; unset optional fields are omitted (as `record.md` §2 itself
+  writes `limits: {max: 50}`), key order is the spec's, and a non-finite float or
+  a non-plain value inside the pass-through `calls` list is refused, which is what
+  makes the two serialisations byte-stable. `RecordError` is its own type under
+  `shal.Error` — nothing hopped, and a result read back months later is not the
+  topology load path D18 defines `LoadError` for; its messages name the file and
+  the offending key and never the value, because `calls[].result` holds whatever a
+  driver returned. **No consumer wiring yet**: nothing in `shal` imports it and it
+  is deliberately not re-exported from `shal/__init__.py` — `pytest-shal` (R2),
+  Bricks/AOS (R3) and Predictor (R4) follow. See `tests/test_record.py`.
 - **`include:` composes a topology from many YAML files — add a device, add a
   file** (#134, D21) — a top-level `include:` list names other topology files
   (each a full `root:` of its own); their `root:` maps merge as **siblings**

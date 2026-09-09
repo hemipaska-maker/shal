@@ -1,0 +1,356 @@
+"""The record (D22, `record.md`): one shape, two stores, the YAML wins.
+
+The load-bearing test here is the round-trip — a record written by `write()` must
+come back *identical* from the SQLite index and from the YAML audit copy, and the
+two must be identical to each other. That is what lets Predictor train on records
+a station wrote a year ago and the floor screen index the same rows.
+"""
+import json
+import re
+import sqlite3
+
+import pytest
+import yaml
+
+# `_read_db` / `_read_yaml` are private on purpose: `record.md` §3 names only
+# `write(record, store)` and `read(store)`, and the DoD's "byte-identical from
+# both stores" cannot be shown through a reader that already applies the
+# YAML-wins rule. They stay underscored until the spec names a public pair.
+from shal.record import (
+    RECORD_VERSION,
+    Abort,
+    Limits,
+    Measurement,
+    Record,
+    RecordError,
+    Step,
+    _read_db,
+    _read_yaml,
+    db_path,
+    read,
+    to_json,
+    to_yaml,
+    write,
+    yaml_path,
+)
+
+# `record.md` §2's own example, plus every awkward shape the round-trip must
+# survive: a one-sided limit, a float that is not exactly representable, a
+# negative value, `None` inside the pass-through `calls` list, and nesting.
+FULL = Record(
+    record="rec-20260909T143022-8f1a2c",
+    unit="SN-000417",
+    station="line2-st4",
+    sequence="psu-bringup",
+    sequence_version="3f2a9c1",
+    firmware="fw-1.4.2+b117",
+    setup="bench.yaml",
+    setup_version="91efa96",
+    runner="pytest",
+    started="2026-09-09T14:30:22Z",
+    ended="2026-09-09T14:31:07Z",
+    steps=[
+        Step(
+            name="measure_vout",
+            verdict="pass",
+            measurements=[
+                Measurement(name="vout", value=4.98, unit="V",
+                            limits=Limits(min=4.9, max=5.1), passed=True),
+                Measurement(name="iout", value=-0.1234567890123, unit="A",
+                            limits=Limits(), passed=True),
+            ],
+        ),
+        Step(
+            name="ripple",
+            verdict="fail",
+            measurements=[
+                Measurement(name="ripple_pp", value=61.2, unit="mV",
+                            limits=Limits(max=50), passed=False),
+            ],
+        ),
+    ],
+    calls=[
+        {"capability": "psu.set_voltage", "side_effect": "write",
+         "shal_txn": "a1b2", "result": "ok"},
+        {"capability": "psu.read_voltage", "side_effect": "read",
+         "shal_txn": "c3d4", "result": None, "args": {"channel": 1, "sweep": [1, 2.5]}},
+    ],
+)
+
+MINIMAL = Record(
+    record="rec-20260909T090000-000001",
+    unit="bench",                      # §2: never blank
+    station="bench-hemi",
+    sequence="tests/test_psu.py::test_vout",
+    sequence_version="0000000",
+    setup="bench.yaml",
+    setup_version="91efa96",
+    runner="pytest",
+    started="2026-09-09T09:00:00Z",
+    ended="2026-09-09T09:00:01Z",
+)
+
+
+# --------------------------------------------------------------------------- #
+# DoD: written once, read back byte-identical from BOTH stores
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("original", [FULL, MINIMAL], ids=["full", "minimal"])
+def test_round_trip_is_byte_identical_from_both_stores(tmp_path, original):
+    write(original, tmp_path)
+
+    from_yaml = _read_yaml(tmp_path, original.record)
+    from_db = _read_db(tmp_path, original.record)
+
+    # 1. Both stores gave back a record equal to the one that went in. Frozen
+    #    dataclasses compare by value all the way down, so this covers every
+    #    field, every step, every measurement and every pass-through call.
+    assert from_yaml == original
+    assert from_db == original
+    assert from_yaml == from_db
+
+    # 2. Byte-identical, not merely equal: re-serialising what each store gave
+    #    back reproduces the same bytes. This is what catches a float that lost
+    #    a digit, a key that moved, or a `None` that became "None".
+    assert to_yaml(from_yaml).encode() == to_yaml(original).encode()
+    assert to_yaml(from_db).encode() == to_yaml(original).encode()
+    assert to_json(from_yaml).encode() == to_json(original).encode()
+    assert to_json(from_db).encode() == to_json(original).encode()
+
+    # 3. And the bytes actually on disk are those bytes.
+    on_disk = yaml_path(tmp_path, original.record).read_bytes()
+    assert on_disk == to_yaml(original).encode()
+    assert on_disk.count(b"\r") == 0     # LF everywhere, Windows included
+
+    # 4. The public reader agrees with both.
+    assert read(tmp_path) == [original]
+
+
+def test_floats_and_none_survive_both_serialisations_exactly(tmp_path):
+    write(FULL, tmp_path)
+    doc = yaml.safe_load(yaml_path(tmp_path, FULL.record).read_text(encoding="utf-8"))
+    blob = json.loads(_db_json(tmp_path, FULL.record))
+
+    assert doc == blob                                    # same data, both stores
+    assert doc["steps"][0]["measurements"][1]["value"] == -0.1234567890123
+    assert blob["steps"][0]["measurements"][1]["value"] == -0.1234567890123
+    assert doc["calls"][1]["result"] is None
+    assert blob["calls"][1]["result"] is None
+
+    # `started` must come back a str from YAML, not a datetime: an unquoted
+    # ISO timestamp is a YAML `timestamp`, and JSON has no such type, so a
+    # datetime field could never be identical across the two stores.
+    assert doc["started"] == "2026-09-09T14:30:22Z"
+    assert isinstance(doc["started"], str)
+
+
+def test_key_order_is_the_specs_order_not_alphabetical(tmp_path):
+    write(FULL, tmp_path)
+    text = yaml_path(tmp_path, FULL.record).read_text(encoding="utf-8")
+    # PyYAML does not indent block sequences, so `- name:` lines also start at
+    # column 0; only top-level mapping keys are wanted here.
+    keys = [m.group(1) for m in re.finditer(r"^([a-z_]+):", text, re.MULTILINE)]
+    assert keys == [
+        "record_version", "record", "unit", "station", "sequence", "sequence_version",
+        "firmware", "setup", "setup_version", "runner", "started", "ended",
+        "verdict", "steps", "calls",
+    ]
+    assert text.startswith("record_version:")   # §7: the first field
+
+
+def test_optional_fields_are_omitted_when_unset(tmp_path):
+    write(MINIMAL, tmp_path)
+    doc = yaml.safe_load(yaml_path(tmp_path, MINIMAL.record).read_text(encoding="utf-8"))
+    assert "firmware" not in doc and "abort" not in doc
+    assert MINIMAL.firmware is None and MINIMAL.abort is None
+    # §2 writes a one-sided limit as `limits: {max: 50}` — no `min` key.
+    assert FULL.to_mapping()["steps"][1]["measurements"][0]["limits"] == {"max": 50}
+    assert FULL.to_mapping()["steps"][0]["measurements"][1]["limits"] == {}
+
+
+# --------------------------------------------------------------------------- #
+# DoD: the YAML wins on disagreement (`record.md` §4)
+# --------------------------------------------------------------------------- #
+
+def test_yaml_wins_when_the_two_stores_disagree(tmp_path):
+    write(FULL, tmp_path)
+
+    # Rewrite only the audit copy: a different unit, and a verdict that follows
+    # from a different set of steps. The db row keeps the original values in
+    # both its JSON column and its indexed columns.
+    truth = Record(**{**_as_kwargs(FULL), "unit": "SN-999999", "steps": ()})
+    yaml_path(tmp_path, FULL.record).write_text(to_yaml(truth), encoding="utf-8",
+                                                newline="\n")
+
+    assert json.loads(_db_json(tmp_path, FULL.record))["unit"] == "SN-000417"
+    assert _db_row(tmp_path, FULL.record)[1] == "SN-000417"     # the indexed column
+
+    got = read(tmp_path)
+    assert got == [truth]
+    assert got[0].unit == "SN-999999"
+    assert got[0].verdict == "pass"      # derived from the YAML's steps, not the db's
+
+    # The filters are applied to the winning data, not to the db's stale index.
+    assert read(tmp_path, unit="SN-999999") == [truth]
+    assert read(tmp_path, unit="SN-000417") == []
+    assert read(tmp_path, verdict="pass") == [truth]
+    assert read(tmp_path, verdict="fail") == []
+
+
+def test_a_yaml_only_record_is_still_returned(tmp_path):
+    """The db is an index and can be rebuilt; the audit copy is the record."""
+    write(FULL, tmp_path)
+    with sqlite3.connect(db_path(tmp_path)) as conn:
+        conn.execute("DELETE FROM records")
+    assert read(tmp_path) == [FULL]
+
+
+def test_a_db_only_record_is_not_silently_dropped(tmp_path):
+    """No YAML copy is a problem, but losing the row entirely is a worse one."""
+    write(FULL, tmp_path)
+    yaml_path(tmp_path, FULL.record).unlink()
+    assert read(tmp_path) == [FULL]
+
+
+# --------------------------------------------------------------------------- #
+# the invariants
+# --------------------------------------------------------------------------- #
+
+def test_verdict_is_derived_never_set_by_hand():
+    step = Measurement(name="v", value=1.0, unit="V", limits=Limits(max=2), passed=True)
+    ok = Step(name="s", verdict="pass", measurements=[step])
+    bad = Step(name="s", verdict="fail", measurements=[step])
+    boom = Step(name="s", verdict="error", measurements=[])
+
+    assert _with(steps=[ok]).verdict == "pass"
+    assert _with(steps=[ok, bad]).verdict == "fail"
+    assert _with(steps=[ok, bad, boom]).verdict == "error"   # a raise outranks a fail
+    aborted = _with(steps=[ok, bad],
+                    abort=Abort(by="predictor", after_step="s",
+                                reason="p_fail=0.91 after 3 of 9 steps"))
+    assert aborted.verdict == "aborted"                      # abort outranks everything
+
+    with pytest.raises(AttributeError):
+        FULL.verdict = "pass"        # type: ignore[misc]  — derived, not a field
+
+
+def test_a_stored_verdict_that_disagrees_with_its_steps_is_refused(tmp_path):
+    write(FULL, tmp_path)
+    doc = yaml.safe_load(yaml_path(tmp_path, FULL.record).read_text(encoding="utf-8"))
+    doc["verdict"] = "pass"          # its steps say `fail`
+    yaml_path(tmp_path, FULL.record).write_text(yaml.safe_dump(doc, sort_keys=False),
+                                                encoding="utf-8", newline="\n")
+    with pytest.raises(RecordError, match="derived"):
+        read(tmp_path)
+
+
+def test_abort_round_trips(tmp_path):
+    rec = _with(record="rec-20260909T150000-abcdef",
+                abort=Abort(by="human", after_step="measure_vout", reason="operator"))
+    write(rec, tmp_path)
+    assert _read_yaml(tmp_path, rec.record) == rec == _read_db(tmp_path, rec.record)
+    assert read(tmp_path, verdict="aborted") == [rec]
+
+
+def test_a_newer_record_version_is_refused_not_half_read(tmp_path):
+    write(FULL, tmp_path)
+    doc = yaml.safe_load(yaml_path(tmp_path, FULL.record).read_text(encoding="utf-8"))
+    doc["record_version"] = RECORD_VERSION + 1
+    yaml_path(tmp_path, FULL.record).write_text(yaml.safe_dump(doc, sort_keys=False),
+                                                encoding="utf-8", newline="\n")
+    with pytest.raises(RecordError, match="newer than this reader"):
+        read(tmp_path)
+
+
+@pytest.mark.parametrize("drop", ["unit", "station", "sequence", "setup",
+                                  "setup_version", "runner", "started", "ended",
+                                  "steps", "calls"])
+def test_every_field_but_firmware_and_abort_is_required(drop):
+    doc = FULL.to_mapping()
+    del doc[drop]
+    with pytest.raises(RecordError, match=f"missing required key '{drop}'"):
+        Record.from_mapping(doc)
+
+
+def test_a_call_payload_that_cannot_round_trip_is_refused(tmp_path):
+    import datetime
+    rec = _with(calls=[{"capability": "x", "result": datetime.date(2026, 9, 9)}])
+    with pytest.raises(RecordError, match="date"):
+        write(rec, tmp_path)
+    with pytest.raises(RecordError, match="finite"):
+        write(_with(calls=[{"capability": "x", "result": float("nan")}]), tmp_path)
+
+
+def test_a_record_id_cannot_name_another_file(tmp_path):
+    with pytest.raises(RecordError, match="safe file name"):
+        write(_with(record="../../etc/passwd"), tmp_path)
+
+
+def test_error_messages_never_echo_a_value():
+    """A record can carry whatever a driver returned; a value may be a secret."""
+    doc = FULL.to_mapping()
+    doc["calls"][0]["result"] = {"token": "hunter2-super-secret"}
+    doc["calls"][0]["extra"] = object()
+    with pytest.raises(RecordError) as exc:
+        Record.from_mapping(doc)
+    assert "hunter2" not in str(exc.value)
+    assert "calls[0].extra" in str(exc.value)
+
+
+def test_the_db_indexes_the_columns_the_floor_screen_queries(tmp_path):
+    write(FULL, tmp_path)
+    with sqlite3.connect(db_path(tmp_path)) as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(records)")]
+        idx = {r[1] for r in conn.execute("PRAGMA index_list(records)")}
+    assert cols == ["record", "unit", "station", "sequence", "verdict",
+                    "started", "record_json"]
+    assert {"records_unit", "records_station", "records_sequence",
+            "records_verdict", "records_started"} <= idx
+
+
+def test_writing_the_same_id_twice_replaces_both_copies(tmp_path):
+    write(FULL, tmp_path)
+    again = Record(**{**_as_kwargs(FULL), "unit": "SN-000418"})
+    write(again, tmp_path)
+    assert read(tmp_path) == [again]
+    with sqlite3.connect(db_path(tmp_path)) as conn:
+        assert conn.execute("SELECT count(*) FROM records").fetchone()[0] == 1
+
+
+def test_read_filters_and_orders_by_started(tmp_path):
+    a = _with(record="rec-a", station="line2-st4", started="2026-09-09T01:00:00Z")
+    b = _with(record="rec-b", station="line2-st5", started="2026-09-09T00:00:00Z")
+    write(a, tmp_path)
+    write(b, tmp_path)
+    assert [r.record for r in read(tmp_path)] == ["rec-b", "rec-a"]
+    assert read(tmp_path, station="line2-st5") == [b]
+    assert read(tmp_path, sequence="psu-bringup") == [b, a]
+    assert read(tmp_path, unit="nobody") == []
+
+
+def test_reading_an_empty_store_is_empty_not_an_error(tmp_path):
+    assert read(tmp_path) == []
+
+
+# --------------------------------------------------------------------------- #
+# helpers
+# --------------------------------------------------------------------------- #
+
+def _as_kwargs(rec: Record) -> dict:
+    return {f: getattr(rec, f) for f in rec.__dataclass_fields__}
+
+
+def _with(**changes) -> Record:
+    return Record(**{**_as_kwargs(FULL), **changes})
+
+
+def _db_row(store, record_id):
+    with sqlite3.connect(db_path(store)) as conn:
+        return conn.execute("SELECT * FROM records WHERE record = ?",
+                            (record_id,)).fetchone()
+
+
+def _db_json(store, record_id) -> str:
+    with sqlite3.connect(db_path(store)) as conn:
+        return conn.execute("SELECT record_json FROM records WHERE record = ?",
+                            (record_id,)).fetchone()[0]
