@@ -181,3 +181,37 @@ is automatic — you don't wire it; you just classify ops with `side_effect`.
 
 **Going deeper:** the full SDK (buses, transport kinds, limits, sims, conformance) is
 bundled too — run `shal docs --sdk` (it ships in the wheel, like this guide).
+
+---
+
+## The ADK
+
+You just used five things to build a driver. Together, they are the ADK — the
+Agent Development Kit for SHAL. This section names them. It does not change how
+they work.
+
+1. **The rules in this guide.** See [The five rules](#the-five-rules) above.
+   They tell you how to register a driver, how to tag every op with a
+   `side_effect`, and why you must connect lazily.
+2. **`@op` in [`driver.py`](driver.py).** `@op` is the contract behind rule 2 and
+   3. It records the `side_effect` you declare, and if you forget it, the op is
+   gated by default. It never becomes free by accident.
+3. **The typed protocols in [`capabilities.py`](capabilities.py).** A capability
+   like `PowerSupply` or `TemperatureSensor` names a set of methods. Claim one,
+   and your driver works like any other driver of that kind.
+4. **`conformance.check_driver` in [`conformance.py`](conformance.py).** This
+   function checks your driver class. Give it a sim topology, and it also runs
+   live checks against your driver. Its report says pass or fail.
+5. **The sim-twin buses: [`buses/sim.py`](buses/sim.py),
+   [`buses/sim_msg.py`](buses/sim_msg.py), and
+   [`buses/sim_scpi.py`](buses/sim_scpi.py).** These run the same driver code
+   against a simulated device, with no real hardware. This is what makes
+   `check_driver`'s live checks possible without a lab.
+
+**What "proven" means.** These five pieces are the kit. They do not, by
+themselves, show that a cold agent — one that has never seen a device before —
+can use the kit to write a working driver on the first try. That claim needs a
+test, not this page. The test lives in a separate repo, `determlab/adk-lab`: ten
+devices, run cold, checked by a script, not by a person. Until `RESULTS.jsonl`
+exists there from a real run, do not read this section as a passed test — it
+names the kit; the lab is what proves it. See `adk.md`, decision R1.
